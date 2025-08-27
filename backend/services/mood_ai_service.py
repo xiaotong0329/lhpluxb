@@ -326,7 +326,7 @@ Make it personal and contextual. Consider what happened to them, their age, inte
                 if age and age < 18 and alt_type == "cocktails":
                     continue
                     
-                alt_recs = mood_recs[alt_type][:2]  # Get 2 alternatives
+                alt_recs = mood_recs[alt_type][:2]
                 for alt_rec in alt_recs:
                     alternatives.append({
                         "type": alt_type,
@@ -336,7 +336,7 @@ Make it personal and contextual. Consider what happened to them, their age, inte
         
         return {
             "recommendation": recommendation,
-            "alternatives": alternatives[:3]  # Limit to 3 alternatives
+            "alternatives": alternatives[:3]  
         }
     
     @staticmethod
@@ -345,21 +345,16 @@ Make it personal and contextual. Consider what happened to them, their age, inte
         age = user_profile.get('age', 25)
         hobbies = user_profile.get('hobbies', [])
         
-        # Simple personalization logic
         if age < 25:
-            # Younger users might prefer more energetic options
             filtered_recs = [r for r in recommendations if "energetic" in r.get("description", "").lower() or "modern" in r.get("description", "").lower()]
         elif age > 50:
-            # Older users might prefer more classic options
             filtered_recs = [r for r in recommendations if "classic" in r.get("description", "").lower() or "timeless" in r.get("description", "").lower()]
         else:
             filtered_recs = recommendations
         
-        # If no filtered results, use original
         if not filtered_recs:
             filtered_recs = recommendations
         
-        # Select based on hobbies if possible
         for rec in filtered_recs:
             for hobby in hobbies:
                 if hobby.lower() in rec.get("title", "").lower() or hobby.lower() in rec.get("description", "").lower():
@@ -371,7 +366,6 @@ Make it personal and contextual. Consider what happened to them, their age, inte
                         "category": rec.get("category", "general")
                     }
         
-        # Return first recommendation if no hobby match
         rec = filtered_recs[0]
         return {
             "type": rec_type,
