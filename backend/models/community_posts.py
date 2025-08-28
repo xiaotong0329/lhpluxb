@@ -12,19 +12,18 @@ class CommunityPost:
             'mood': mood.lower(),
             'activity_title': activity_title,
             'activity_description': activity_description,
-            'activity_type': activity_type,  # movie, cocktail, activity, etc.
+            'activity_type': activity_type,  
             'mood_intensity': mood_intensity,
-            'description': description,  # What happened to cause this mood
+            'description': description,  
             'note': note,
             'is_public': is_public,
             'created_at': datetime.utcnow(),
             'likes': 0,
             'stars': 0,
             'comments_count': 0,
-            'user_username': None  # Will be populated when creating
+            'user_username': None  
         }
         
-        # Get user username
         user = g.db.users.find_one({'_id': ObjectId(user_id)})
         if user:
             post_data['user_username'] = user.get('username', 'Anonymous')
@@ -62,23 +61,23 @@ class CommunityPost:
     @staticmethod
     def like_post(post_id: str, user_id: str):
         """Like a post"""
-        # Check if user already liked this post
+        
         existing_like = g.db.post_likes.find_one({
             'post_id': ObjectId(post_id),
             'user_id': ObjectId(user_id)
         })
         
         if existing_like:
-            return False  # Already liked
+            return False  
         
-        # Add like
+        
         g.db.post_likes.insert_one({
             'post_id': ObjectId(post_id),
             'user_id': ObjectId(user_id),
             'created_at': datetime.utcnow()
         })
         
-        # Update post like count
+        
         g.db.community_posts.update_one(
             {'_id': ObjectId(post_id)},
             {'$inc': {'likes': 1}}
@@ -106,23 +105,23 @@ class CommunityPost:
     @staticmethod
     def star_post(post_id: str, user_id: str):
         """Star a post (bookmark/favorite)"""
-        # Check if user already starred this post
+        
         existing_star = g.db.post_stars.find_one({
             'post_id': ObjectId(post_id),
             'user_id': ObjectId(user_id)
         })
         
         if existing_star:
-            return False  # Already starred
+            return False 
         
-        # Add star
+        
         g.db.post_stars.insert_one({
             'post_id': ObjectId(post_id),
             'user_id': ObjectId(user_id),
             'created_at': datetime.utcnow()
         })
         
-        # Update post star count
+        
         g.db.community_posts.update_one(
             {'_id': ObjectId(post_id)},
             {'$inc': {'stars': 1}}
@@ -203,14 +202,13 @@ class PostComment:
             'user_username': None
         }
         
-        # Get user username
+        
         user = g.db.users.find_one({'_id': ObjectId(user_id)})
         if user:
             comment_data['user_username'] = user.get('username', 'Anonymous')
         
         result = g.db.post_comments.insert_one(comment_data)
         
-        # Update post comment count
         g.db.community_posts.update_one(
             {'_id': ObjectId(post_id)},
             {'$inc': {'comments_count': 1}}

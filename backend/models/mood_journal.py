@@ -29,12 +29,9 @@ class MoodEntry:
     @staticmethod
     def get_mood_by_date(user_id: str, date):
         """Get mood entry for a specific date"""
-        # Convert date to datetime for comparison
         if hasattr(date, 'date'):
-            # If it's a datetime, get the date part
             date_to_find = date.replace(hour=0, minute=0, second=0, microsecond=0)
         else:
-            # If it's a date, convert to datetime
             date_to_find = datetime.combine(date, datetime.min.time())
         
         return g.db.mood_entries.find_one({
@@ -74,7 +71,7 @@ class Recommendation:
         recommendation_data = {
             'user_id': ObjectId(user_id),
             'mood': mood.lower(),
-            'activity_type': activity_type,  # movie, cocktail, music, activity, etc.
+            'activity_type': activity_type,  
             'title': title,
             'description': description,
             'url': url,

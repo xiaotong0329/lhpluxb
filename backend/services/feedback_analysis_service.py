@@ -74,38 +74,32 @@ class FeedbackAnalysisService:
             # Get user preferences
             preferences = FeedbackAnalysisService.get_user_preferences(user_id)
             
-            # Get recommendations for the mood
             query = {'mood': mood.lower()}
             if activity_type:
                 query['activity_type'] = activity_type
             
-            # Get all recommendations for this mood
             recommendations = list(g.db.recommendations.find(query))
             
-            # Score recommendations based on user preferences
             scored_recommendations = []
             
             for rec in recommendations:
                 score = 0
                 rec_activity_type = rec.get('activity_type', 'unknown')
                 
-                # Base score from community feedback
                 likes = rec.get('likes', 0)
                 dislikes = rec.get('dislikes', 0)
                 total_feedback = rec.get('feedback_count', 0)
                 
                 if total_feedback > 0:
                     community_score = (likes - dislikes) / total_feedback
-                    score += community_score * 0.3  # 30% weight to community feedback
+                    score += community_score * 0.3  
                 
-                # Personal preference score
                 if rec_activity_type in preferences.get('liked_activity_types', {}):
-                    score += 0.4  # 40% boost for liked activity types
+                    score += 0.4  
                 
                 if rec_activity_type in preferences.get('disliked_activity_types', {}):
-                    score -= 0.4  # 40% penalty for disliked activity types
+                    score -= 0.4  
                 
-                # Mood-specific preference score
                 mood_prefs = preferences.get('mood_preferences', {}).get(mood, {})
                 mood_activity_prefs = mood_prefs.get('activity_types', {}).get(rec_activity_type, {})
                 
@@ -115,7 +109,7 @@ class FeedbackAnalysisService:
                 
                 if mood_total > 0:
                     mood_score = (mood_liked - mood_disliked) / mood_total
-                    score += mood_score * 0.3  # 30% weight to mood-specific preferences
+                    score += mood_score * 0.3  
                 
                 scored_recommendations.append({
                     'recommendation': rec,
@@ -127,7 +121,6 @@ class FeedbackAnalysisService:
                     }
                 })
             
-            # Sort by score (highest first)
             scored_recommendations.sort(key=lambda x: x['score'], reverse=True)
             
             return scored_recommendations
@@ -217,23 +210,19 @@ class FeedbackAnalysisService:
         try:
             preferences = FeedbackAnalysisService.get_user_preferences(user_id)
             
-            # Check if user dislikes this activity type overall
             if activity_type in preferences.get('disliked_activity_types', {}):
                 disliked_count = preferences['disliked_activity_types'][activity_type]
                 liked_count = preferences.get('liked_activity_types', {}).get(activity_type, 0)
                 
-                # If disliked significantly more than liked, avoid it
                 if disliked_count > liked_count * 2:
                     return True
             
-            # Check mood-specific dislikes
             mood_prefs = preferences.get('mood_preferences', {}).get(mood, {})
             mood_activity_prefs = mood_prefs.get('activity_types', {}).get(activity_type, {})
             
             mood_disliked = mood_activity_prefs.get('disliked', 0)
             mood_liked = mood_activity_prefs.get('liked', 0)
             
-            # If user has disliked this activity type for this mood, avoid it
             if mood_disliked > mood_liked:
                 return True
             
