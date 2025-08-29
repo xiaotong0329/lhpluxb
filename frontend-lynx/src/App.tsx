@@ -51,7 +51,7 @@ interface CommunityPost {
 }
 
 // Real API functions
-const API_BASE_URL = 'http://localhost:8080'
+const API_BASE_URL = 'http://127.0.0.1:8080'
 
 const api = {
   login: async (identifier: string, password: string) => {
@@ -135,6 +135,22 @@ const api = {
     if (!response.ok) {
       const error = await response.json()
       throw new Error(error.error || 'Failed to get mood history')
+    }
+    
+    return await response.json()
+  },
+
+  getMoodEntriesByDate: async (token: string, date: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/v1/mood/mood?date=${date}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to get mood entries for date')
     }
     
     return await response.json()
@@ -226,7 +242,7 @@ const api = {
 }
 
 export function App() {
-  const [currentView, setCurrentView] = useState<'auth' | 'main' | 'mood-log' | 'recommendations' | 'community'>('auth')
+  const [currentView, setCurrentView] = useState<'auth' | 'main' | 'mood-log' | 'recommendations' | 'community' | 'day-detail'>('auth')
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [moodEntries, setMoodEntries] = useState<MoodEntry[]>([])
@@ -260,6 +276,11 @@ export function App() {
     note: '',
     description: ''
   })
+
+  // Calendar state
+  const [currentDate, setCurrentDate] = useState(new Date())
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [calendarMoodEntries, setCalendarMoodEntries] = useState<{[key: string]: MoodEntry[]}>({})
 
   const handleAuth = async () => {
     console.log('Auth data being sent:', authData)
@@ -412,6 +433,34 @@ export function App() {
     }
   }, [currentView])
 
+  useEffect(() => {
+    if (user && currentView === 'main') {
+      loadMoodEntriesForCalendar()
+    }
+  }, [user, currentView])
+
+  const loadMoodEntriesForCalendar = async () => {
+    if (!user?.token) return
+    
+    try {
+      const entries = await api.getMoodHistory(user.token)
+      const entriesByDate: {[key: string]: MoodEntry[]} = {}
+      
+      entries.forEach((entry: MoodEntry) => {
+        const dateKey = formatDateKey(new Date(entry.date))
+        if (!entriesByDate[dateKey]) {
+          entriesByDate[dateKey] = []
+        }
+        entriesByDate[dateKey].push(entry)
+      })
+      
+      setCalendarMoodEntries(entriesByDate)
+      setMoodEntries(entries)
+    } catch (error) {
+      console.error('Failed to load mood entries for calendar:', error)
+    }
+  }
+
   const getMoodEmoji = (mood: string) => {
     const emojis = { happy: '😊', sad: '😢', anxious: '😰', excited: '🤩' }
     return emojis[mood as keyof typeof emojis] || '😊'
@@ -424,6 +473,53 @@ export function App() {
 
   const capitalizeFirst = (str: string) => {
     return str.charAt(0).toUpperCase() + str.slice(1)
+  }
+
+  // Calendar utility functions
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear()
+    const month = date.getMonth()
+    const firstDay = new Date(year, month, 1)
+    const lastDay = new Date(year, month + 1, 0)
+    const startDate = new Date(firstDay)
+    startDate.setDate(startDate.getDate() - firstDay.getDay())
+    
+    const days = []
+    const current = new Date(startDate)
+    
+    while (current <= lastDay || current.getDay() !== 0) {
+      days.push(new Date(current))
+      current.setDate(current.getDate() + 1)
+    }
+    
+    return days
+  }
+
+  const formatDateKey = (date: Date) => {
+    return date.toISOString().split('T')[0]
+  }
+
+  const isToday = (date: Date) => {
+    const today = new Date()
+    return date.toDateString() === today.toDateString()
+  }
+
+  const isSelectedDate = (date: Date) => {
+    return selectedDate && date.toDateString() === selectedDate.toDateString()
+  }
+
+  const hasMoodEntry = (date: Date) => {
+    const dateKey = formatDateKey(date)
+    return calendarMoodEntries[dateKey] && calendarMoodEntries[dateKey].length > 0
+  }
+
+  const getMoodForDate = (date: Date) => {
+    const dateKey = formatDateKey(date)
+    const entries = calendarMoodEntries[dateKey]
+    if (entries && entries.length > 0) {
+      return entries[0].mood // Return the first mood entry for the date
+    }
+    return null
   }
 
   const renderInputModal = () => {
@@ -638,41 +734,80 @@ export function App() {
         <text className="date-text">{new Date().toLocaleDateString()}</text>
       </view>
 
-      <view className="quick-actions">
-        <view className="action-card" bindtap={() => setCurrentView('mood-log')}>
-          <text className="action-emoji">📝</text>
-          <text className="action-title">Log Mood</text>
-          <text className="action-subtitle">How are you feeling today?</text>
+      {/* Calendar Section - Takes up 2/3 of the screen */}
+      <view className="calendar-section">
+        <view className="calendar-header">
+          <view 
+            className="calendar-nav-button"
+            bindtap={() => {
+              const newDate = new Date(currentDate)
+              newDate.setMonth(newDate.getMonth() - 1)
+              setCurrentDate(newDate)
+            }}
+          >
+            <text className="calendar-nav-text">‹</text>
+          </view>
+          <text className="calendar-title">
+            {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+          </text>
+          <view 
+            className="calendar-nav-button"
+            bindtap={() => {
+              const newDate = new Date(currentDate)
+              newDate.setMonth(newDate.getMonth() + 1)
+              setCurrentDate(newDate)
+            }}
+          >
+            <text className="calendar-nav-text">›</text>
+          </view>
         </view>
-        
-        <view className="action-card" bindtap={() => setCurrentView('community')}>
-          <text className="action-emoji">🌍</text>
-          <text className="action-title">Community</text>
-          <text className="action-subtitle">See what others are up to</text>
+
+        <view className="calendar-grid">
+          {/* Day headers */}
+          <view className="calendar-day-header">Sun</view>
+          <view className="calendar-day-header">Mon</view>
+          <view className="calendar-day-header">Tue</view>
+          <view className="calendar-day-header">Wed</view>
+          <view className="calendar-day-header">Thu</view>
+          <view className="calendar-day-header">Fri</view>
+          <view className="calendar-day-header">Sat</view>
+
+          {/* Calendar days */}
+          {getDaysInMonth(currentDate).map((date, index) => {
+            const isCurrentMonth = date.getMonth() === currentDate.getMonth()
+            const mood = getMoodForDate(date)
+            const hasEntry = hasMoodEntry(date)
+            
+            return (
+              <view 
+                key={index}
+                className={`calendar-day ${!isCurrentMonth ? 'other-month' : ''} ${isToday(date) ? 'today' : ''} ${isSelectedDate(date) ? 'selected' : ''} ${hasEntry ? 'has-mood' : ''}`}
+                bindtap={() => {
+                  setSelectedDate(date)
+                  if (hasEntry) {
+                    setCurrentView('day-detail')
+                  }
+                }}
+              >
+                <text className="calendar-day-number">{date.getDate()}</text>
+                {hasEntry && mood && (
+                  <text className="calendar-day-mood">{getMoodEmoji(mood)}</text>
+                )}
+              </view>
+            )
+          })}
         </view>
       </view>
 
-      {moodEntries.length > 0 && (
-        <view className="recent-moods">
-          <text className="section-title">Recent Moods</text>
-          <view className="mood-history">
-            {moodEntries.slice(-3).reverse().map(entry => (
-              <view key={entry.id} className="mood-entry">
-                <text className="mood-emoji">{getMoodEmoji(entry.mood)}</text>
-                <view className="mood-details">
-                  <text className="mood-name">{capitalizeFirst(entry.mood)}</text>
-                  <text className="mood-date">{new Date(entry.date).toLocaleDateString()}</text>
-                </view>
-                <view className="mood-intensity">
-                  {Array.from({ length: entry.intensity }, (_, i) => (
-                    <text key={i} className="intensity-dot" />
-                  ))}
-                </view>
-              </view>
-            ))}
-          </view>
+      {/* Bottom Action Buttons */}
+      <view className="bottom-actions">
+        <view className="action-button log-mood" bindtap={() => setCurrentView('mood-log')}>
+          <text className="action-button-text">📝 Log Mood</text>
         </view>
-      )}
+        <view className="action-button community" bindtap={() => setCurrentView('community')}>
+          <text className="action-button-text">🌍 Community</text>
+        </view>
+      </view>
     </view>
   )
 
@@ -798,6 +933,71 @@ export function App() {
     </view>
   )
 
+  const renderDayDetail = () => {
+    if (!selectedDate) return null
+    
+    const dateKey = formatDateKey(selectedDate)
+    const dayEntries = calendarMoodEntries[dateKey] || []
+    
+    return (
+      <view className="day-detail-container">
+        <view className="day-detail-header">
+          <view className="back-button" bindtap={() => setCurrentView('main')}>
+            <text className="back-button-text">← Back</text>
+          </view>
+          <text className="day-detail-title">
+            {selectedDate.toLocaleDateString('en-US', { 
+              weekday: 'long', 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            })}
+          </text>
+        </view>
+
+        {dayEntries.length === 0 ? (
+          <view className="no-entries">
+            <text className="no-entries-text">No mood entries for this day</text>
+            <view className="add-entry-button" bindtap={() => setCurrentView('mood-log')}>
+              <text className="add-entry-button-text">Add Mood Entry</text>
+            </view>
+          </view>
+        ) : (
+          <view className="day-entries">
+            {dayEntries.map(entry => (
+              <view key={entry.id} className="day-entry-card">
+                <view className="entry-header">
+                  <text className="entry-mood-emoji">{getMoodEmoji(entry.mood)}</text>
+                  <text className="entry-mood-name">{capitalizeFirst(entry.mood)}</text>
+                  <view className="entry-intensity">
+                    {Array.from({ length: entry.intensity }, (_, i) => (
+                      <text key={i} className="intensity-dot" />
+                    ))}
+                  </view>
+                </view>
+                
+                {entry.description && (
+                  <text className="entry-description">{entry.description}</text>
+                )}
+                
+                {entry.note && (
+                  <text className="entry-note">{entry.note}</text>
+                )}
+                
+                <text className="entry-time">
+                  {new Date(entry.date).toLocaleTimeString('en-US', { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })}
+                </text>
+              </view>
+            ))}
+          </view>
+        )}
+      </view>
+    )
+  }
+
   const renderCommunity = () => (
     <view className="community-container">
       <view className="community-header">
@@ -855,6 +1055,7 @@ export function App() {
       {currentView === 'mood-log' && renderMoodLog()}
       {currentView === 'recommendations' && renderRecommendations()}
       {currentView === 'community' && renderCommunity()}
+      {currentView === 'day-detail' && renderDayDetail()}
       {renderInputModal()}
     </view>
   )
