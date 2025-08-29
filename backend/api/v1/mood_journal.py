@@ -337,3 +337,66 @@ def get_user_insights():
     except Exception as e:
         logging.error(f"Error getting user insights: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500 
+
+@mood_journal_bp.route('/share', methods=['POST'])
+def share_recommendation():
+    """Share a recommendation to the community"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        # Get user from JWT token
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({"error": "Authorization header required"}), 401
+        
+        token = auth_header.split(' ')[1]
+        user_id = User.verify_jwt_token(token)
+        if not user_id:
+            return jsonify({"error": "Invalid or expired token"}), 401
+        
+        # Validate required fields
+        recommendation_id = data.get('recommendation_id')
+        mood = data.get('mood', '').strip()
+        mood_intensity = data.get('mood_intensity')
+        description = data.get('description', '').strip()
+        
+        if not recommendation_id:
+            return jsonify({"error": "recommendation_id is required"}), 400
+        
+        if not mood:
+            return jsonify({"error": "mood is required"}), 400
+        
+        if mood_intensity is None or not isinstance(mood_intensity, int) or mood_intensity < 1 or mood_intensity > 10:
+            return jsonify({"error": "mood_intensity must be an integer between 1-10"}), 400
+        
+        # Get the recommendation details
+        recommendation = Recommendation.get_by_id(recommendation_id)
+        if not recommendation:
+            return jsonify({"error": "Recommendation not found"}), 404
+        
+        # Import CommunityPost here to avoid circular imports
+        from models.community_posts import CommunityPost
+        
+        # Create a community post from the recommendation
+        post_id = CommunityPost.create(
+            user_id=user_id,
+            mood=mood,
+            activity_title=recommendation.get('title', 'Shared Recommendation'),
+            activity_description=recommendation.get('description', ''),
+            activity_type=recommendation.get('type', 'recommendation'),
+            mood_intensity=mood_intensity,
+            description=description,
+            note=f"Shared from mood journal - {recommendation.get('reasoning', '')}",
+            is_public=True
+        )
+        
+        return jsonify({
+            "message": "Recommendation shared successfully",
+            "post_id": post_id
+        }), 201
+        
+    except Exception as e:
+        logging.error(f"Error sharing recommendation: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500 

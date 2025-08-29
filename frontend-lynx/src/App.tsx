@@ -204,6 +204,24 @@ const api = {
     }
     
     return await response.json()
+  },
+
+  shareRecommendation: async (shareData: any, token: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/v1/mood/share`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(shareData)
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to share recommendation')
+    }
+    
+    return await response.json()
   }
 }
 
@@ -337,6 +355,29 @@ export function App() {
       }))
     } catch (error) {
       console.error('Star post error:', error)
+    }
+  }
+
+  const handleShareRecommendation = async () => {
+    if (!currentRecommendation) return
+    
+    setIsLoading(true)
+    try {
+      const token = user?.token || ''
+      const shareData = {
+        recommendation_id: currentRecommendation.id,
+        mood: moodData.mood,
+        mood_intensity: moodData.intensity,
+        description: `Shared this ${currentRecommendation.type} recommendation: ${currentRecommendation.title}`
+      }
+      
+      await api.shareRecommendation(shareData, token)
+      alert('Recommendation shared successfully to the community!')
+    } catch (error) {
+      console.error('Share recommendation error:', error)
+      alert('Failed to share recommendation. Please try again.')
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -748,7 +789,7 @@ export function App() {
             <view className="action-button dislike">
               <text className="action-button-text">👎 Dislike</text>
             </view>
-            <view className="action-button share">
+            <view className="action-button share" bindtap={handleShareRecommendation}>
               <text className="action-button-text">📤 Share</text>
             </view>
           </view>
@@ -760,9 +801,6 @@ export function App() {
   const renderCommunity = () => (
     <view className="community-container">
       <view className="community-header">
-        <view className="back-button" bindtap={() => setCurrentView('main')}>
-          <text className="back-button-text">← Back</text>
-        </view>
         <text className="community-title">Community Feed</text>
       </view>
 
@@ -800,6 +838,12 @@ export function App() {
             </view>
           </view>
         ))}
+      </view>
+      
+      <view className="community-footer">
+        <view className="back-button" bindtap={() => setCurrentView('main')}>
+          <text className="back-button-text">← Back to Main</text>
+        </view>
       </view>
     </view>
   )
