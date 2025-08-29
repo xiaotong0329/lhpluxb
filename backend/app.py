@@ -5,7 +5,7 @@ from bson import ObjectId
 from flask import Flask, request, jsonify, g
 from flask_cors import CORS
 from pymongo import MongoClient
-from backend.auth.routes import auth_bp
+from auth.routes import auth_bp
 import logging
 from dotenv import load_dotenv
 
@@ -30,6 +30,9 @@ def create_app():
         os.getenv('FRONTEND_URL', 'http://localhost:8081'),
         'http://localhost:8081',
         'http://localhost:3000',
+        'http://localhost:3001',
+        'http://localhost:3002',
+        'http://localhost:3003',
         'exp://192.168.0.116:8081'  
     ]
     
@@ -59,8 +62,11 @@ def create_app():
 
     app.register_blueprint(auth_bp)
 
-    from backend.api.v1.mood_journal import mood_journal_bp
+    from api.v1.mood_journal import mood_journal_bp
     app.register_blueprint(mood_journal_bp, url_prefix='/api/v1/mood')
+
+    from api.v1.community import community_bp
+    app.register_blueprint(community_bp, url_prefix='/api/v1/community')
 
     @app.route('/health', methods=['GET'])
     def health_check():

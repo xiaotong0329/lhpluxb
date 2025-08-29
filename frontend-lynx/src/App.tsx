@@ -10,6 +10,7 @@ interface User {
   nationality: string
   gender: string
   hobbies: string[]
+  token: string
 }
 
 interface MoodEntry {
@@ -49,117 +50,160 @@ interface CommunityPost {
   isStarred?: boolean
 }
 
-// Mock API functions
-const mockApi = {
+// Real API functions
+const API_BASE_URL = 'http://localhost:8080'
+
+const api = {
   login: async (identifier: string, password: string) => {
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    return {
-      token: 'mock-jwt-token',
-      user: {
-        id: '1',
-        username: identifier,
-        email: `${identifier}@example.com`,
-        age: 25,
-        nationality: 'American',
-        gender: 'prefer not to say',
-        hobbies: ['reading', 'music', 'travel']
-      }
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ identifier, password })
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Login failed')
     }
+    
+    return await response.json()
   },
   
   register: async (userData: any) => {
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    return {
-      token: 'mock-jwt-token',
-      user: { ...userData, id: '1' }
-    }
-  },
-
-  logMood: async (moodData: any) => {
-    await new Promise(resolve => setTimeout(resolve, 800))
-    return {
-      message: 'Mood logged successfully',
-      mood_id: Date.now().toString(),
-      ...moodData
-    }
-  },
-
-  getRecommendation: async (moodData: any) => {
-    await new Promise(resolve => setTimeout(resolve, 1200))
-    const recommendations = {
-      sad: [
-        { type: 'movie', title: 'The Secret Life of Walter Mitty', description: 'An uplifting adventure about finding purpose', reasoning: 'Perfect for lifting your spirits', category: 'feel-good' },
-        { type: 'cocktail', title: 'Hot Toddy', description: 'Warm, comforting drink with honey and whiskey', reasoning: 'Soothing and warming', category: 'comfort' },
-        { type: 'activity', title: 'Take a Warm Bath', description: 'Relax with essential oils and candles', reasoning: 'Calming and restorative', category: 'self-care' }
-      ],
-      happy: [
-        { type: 'movie', title: 'La La Land', description: 'A musical celebration of dreams and love', reasoning: 'Matches your joyful energy', category: 'musical' },
-        { type: 'cocktail', title: 'Mojito', description: 'Refreshing mint and lime cocktail', reasoning: 'Perfect for celebration', category: 'celebration' },
-        { type: 'activity', title: 'Dance Party', description: 'Put on your favorite upbeat music and dance', reasoning: 'Channel your positive energy', category: 'fun' }
-      ],
-      anxious: [
-        { type: 'movie', title: 'The Good Place', description: 'Philosophical comedy about life and death', reasoning: 'Light-hearted but thoughtful', category: 'comedy' },
-        { type: 'cocktail', title: 'Chamomile Tea', description: 'Calming herbal tea with honey', reasoning: 'Naturally soothing', category: 'relaxation' },
-        { type: 'activity', title: 'Deep Breathing', description: '5-minute guided breathing exercise', reasoning: 'Immediate stress relief', category: 'wellness' }
-      ],
-      excited: [
-        { type: 'movie', title: 'Mad Max: Fury Road', description: 'High-octane action adventure', reasoning: 'Matches your high energy', category: 'action' },
-        { type: 'cocktail', title: 'Espresso Martini', description: 'Energizing coffee cocktail', reasoning: 'Keeps the energy flowing', category: 'energizing' },
-        { type: 'activity', title: 'Rock Climbing', description: 'Indoor or outdoor climbing adventure', reasoning: 'Channel your excitement', category: 'adventure' }
-      ]
+    const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(userData)
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Registration failed')
     }
     
-    const moodRecs = recommendations[moodData.mood as keyof typeof recommendations] || recommendations.happy
-    const randomRec = moodRecs[Math.floor(Math.random() * moodRecs.length)]
-    
-    return {
-      recommendation: { id: Date.now().toString(), ...randomRec },
-      alternatives: moodRecs.filter(r => r !== randomRec).slice(0, 2)
-    }
+    return await response.json()
   },
 
-  getCommunityPosts: async () => {
-    await new Promise(resolve => setTimeout(resolve, 600))
-    return {
-      posts: [
-        {
-          id: '1',
-          user_id: '2',
-          username: 'Sarah',
-          mood: 'happy',
-          activity_title: 'Morning Yoga',
-          activity_description: 'Started my day with sun salutations',
-          activity_type: 'activity',
-          mood_intensity: 8,
-          description: 'Woke up feeling great today!',
-          note: 'The sunrise was beautiful',
-          likes_count: 12,
-          stars_count: 5,
-          comments_count: 3,
-          created_at: new Date().toISOString(),
-          isLiked: false,
-          isStarred: false
-        },
-        {
-          id: '2',
-          user_id: '3',
-          username: 'Mike',
-          mood: 'sad',
-          activity_title: 'Comfort Food Cooking',
-          activity_description: 'Made my grandma\'s chicken soup recipe',
-          activity_type: 'activity',
-          mood_intensity: 4,
-          description: 'Missing home today',
-          note: 'The soup helped a lot',
-          likes_count: 8,
-          stars_count: 12,
-          comments_count: 7,
-          created_at: new Date(Date.now() - 3600000).toISOString(),
-          isLiked: false,
-          isStarred: false
-        }
-      ]
+  logMood: async (moodData: any, token: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/v1/mood/mood`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(moodData)
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to log mood')
     }
+    
+    return await response.json()
+  },
+
+  getRecommendation: async (moodData: any, token: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/v1/mood/recommend`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(moodData)
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to get recommendations')
+    }
+    
+    return await response.json()
+  },
+
+  getMoodHistory: async (token: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/v1/mood/mood`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to get mood history')
+    }
+    
+    return await response.json()
+  },
+
+  createCommunityPost: async (postData: any, token: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/v1/community/posts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(postData)
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to create post')
+    }
+    
+    return await response.json()
+  },
+
+  getCommunityPosts: async (token: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/v1/community/posts`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to get community posts')
+    }
+    
+    return await response.json()
+  },
+
+  likePost: async (postId: string, token: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/v1/community/posts/${postId}/like`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to like post')
+    }
+    
+    return await response.json()
+  },
+
+  starPost: async (postId: string, token: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/v1/community/posts/${postId}/star`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to star post')
+    }
+    
+    return await response.json()
   }
 }
 
@@ -200,13 +244,16 @@ export function App() {
   })
 
   const handleAuth = async () => {
+    console.log('Auth data being sent:', authData)
+    console.log('Auth mode:', authMode)
     setIsLoading(true)
     try {
       const result = authMode === 'login' 
-        ? await mockApi.login(authData.username, authData.password)
-        : await mockApi.register(authData)
+        ? await api.login(authData.username, authData.password)
+        : await api.register(authData)
       
-      setUser(result.user)
+      console.log('Auth result:', result)
+      setUser({ ...result.user, token: result.token })
       setCurrentView('main')
     } catch (error) {
       console.error('Auth error:', error)
@@ -218,7 +265,8 @@ export function App() {
   const handleLogMood = async () => {
     setIsLoading(true)
     try {
-      const result = await mockApi.logMood(moodData)
+      const token = user?.token || ''
+      const result = await api.logMood(moodData, token)
       setMoodEntries(prev => [...prev, { id: result.mood_id, ...moodData, date: new Date().toISOString() }])
       setCurrentView('recommendations')
     } catch (error) {
@@ -231,7 +279,8 @@ export function App() {
   const handleGetRecommendation = async () => {
     setIsLoading(true)
     try {
-      const result = await mockApi.getRecommendation(moodData)
+      const token = user?.token || ''
+      const result = await api.getRecommendation(moodData, token)
       setCurrentRecommendation(result.recommendation)
     } catch (error) {
       console.error('Recommendation error:', error)
@@ -243,7 +292,8 @@ export function App() {
   const loadCommunityPosts = async () => {
     setIsLoading(true)
     try {
-      const result = await mockApi.getCommunityPosts()
+      const token = user?.token || ''
+      const result = await api.getCommunityPosts(token)
       setCommunityPosts(result.posts)
     } catch (error) {
       console.error('Community posts error:', error)
@@ -252,30 +302,42 @@ export function App() {
     }
   }
 
-  const handleLikePost = (postId: string) => {
-    setCommunityPosts(prev => prev.map(post => {
-      if (post.id === postId) {
-        return {
-          ...post,
-          isLiked: !post.isLiked,
-          likes_count: post.isLiked ? post.likes_count - 1 : post.likes_count + 1
+  const handleLikePost = async (postId: string) => {
+    try {
+      const token = user?.token || ''
+      await api.likePost(postId, token)
+      setCommunityPosts(prev => prev.map(post => {
+        if (post.id === postId) {
+          return {
+            ...post,
+            isLiked: !post.isLiked,
+            likes_count: post.isLiked ? post.likes_count - 1 : post.likes_count + 1
+          }
         }
-      }
-      return post
-    }))
+        return post
+      }))
+    } catch (error) {
+      console.error('Like post error:', error)
+    }
   }
 
-  const handleStarPost = (postId: string) => {
-    setCommunityPosts(prev => prev.map(post => {
-      if (post.id === postId) {
-        return {
-          ...post,
-          isStarred: !post.isStarred,
-          stars_count: post.isStarred ? post.stars_count - 1 : post.stars_count + 1
+  const handleStarPost = async (postId: string) => {
+    try {
+      const token = user?.token || ''
+      await api.starPost(postId, token)
+      setCommunityPosts(prev => prev.map(post => {
+        if (post.id === postId) {
+          return {
+            ...post,
+            isStarred: !post.isStarred,
+            stars_count: post.isStarred ? post.stars_count - 1 : post.stars_count + 1
+          }
         }
-      }
-      return post
-    }))
+        return post
+      }))
+    } catch (error) {
+      console.error('Star post error:', error)
+    }
   }
 
   const openInputModal = (field: string, currentValue: string, type: 'text' | 'textarea' = 'text') => {
@@ -356,7 +418,7 @@ export function App() {
     const backspace = () => setInputModalValue(prev => prev.slice(0, - 1))
     const clearAll = () => setInputModalValue('')
 
-    return (
+  return (
       <view className="input-modal-overlay">
         <view className="input-modal">
           <text className="input-modal-title">{getFieldLabel(inputModalField)}</text>
@@ -665,7 +727,7 @@ export function App() {
           >
             <text className="get-recommendations-button-text">
               {isLoading ? 'Loading...' : 'Get Recommendations'}
-            </text>
+          </text>
           </view>
         </view>
       ) : (

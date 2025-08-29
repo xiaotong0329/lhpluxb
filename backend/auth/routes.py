@@ -39,6 +39,8 @@ def require_auth(f):
 def register():
     try:
         data = request.get_json() or {}
+        current_app.logger.info(f"Registration attempt with data: {data}")
+        
         username = data.get("username", "").strip()
         email = data.get("email", "").strip()
         password = data.get("password", "")
@@ -47,22 +49,30 @@ def register():
         gender = data.get("gender", "").strip()
         hobbies = data.get("hobbies", [])
 
+        current_app.logger.info(f"Parsed data - username: '{username}', email: '{email}', password length: {len(password)}, age: {age}, nationality: '{nationality}', gender: '{gender}', hobbies: {hobbies}")
+
         if not all([username, email, password]):
+            current_app.logger.error(f"Missing required fields - username: '{username}', email: '{email}', password: '{password}'")
             return jsonify({'error': 'Username, email, and password are required'}), 400
         if len(password) < 6:
+            current_app.logger.error(f"Password too short: {len(password)} characters")
             return jsonify({'error': 'Password must be at least 6 characters'}), 400
         if User.find_by_username_or_email(username) or User.find_by_username_or_email(email):
+            current_app.logger.error(f"Username or email already exists: {username}, {email}")
             return jsonify({'error': 'Username or email already exists'}), 409
         
         if age is not None and (not isinstance(age, int) or age < 1 or age > 120):
+            current_app.logger.error(f"Invalid age: {age} (type: {type(age)})")
             return jsonify({'error': 'Age must be an integer between 1-120'}), 400
         
         if not isinstance(hobbies, list):
+            current_app.logger.error(f"Invalid hobbies type: {type(hobbies)}")
             return jsonify({'error': 'Hobbies must be a list'}), 400
         
         pw_hash = hash_password(password)
         user_id = User.create(username, email, pw_hash, age, nationality, gender, hobbies)
         token = User.generate_jwt_token(user_id)
+        current_app.logger.info(f"User created successfully: {user_id}")
         return jsonify({
             'message': 'User created successfully',
             'token': token,
