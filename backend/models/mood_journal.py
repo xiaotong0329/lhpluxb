@@ -6,14 +6,16 @@ class MoodEntry:
     @staticmethod
     def create(user_id: str, mood: str, intensity: int, description: str = None, note: str = None):
         """Create a new mood entry"""
+        # Use local time instead of UTC to ensure correct date
+        now = datetime.now()
         mood_data = {
             'user_id': ObjectId(user_id),
             'mood': mood.lower(),
             'intensity': intensity,  
             'description': description, 
             'note': note,
-            'created_at': datetime.now(timezone.utc),
-            'date': datetime.now(timezone.utc)  
+            'created_at': now,
+            'date': now
         }
         result = g.db.mood_entries.insert_one(mood_data)
         return str(result.inserted_id)

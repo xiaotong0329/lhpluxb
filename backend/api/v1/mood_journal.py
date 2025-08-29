@@ -38,13 +38,7 @@ def log_mood():
         if intensity is None or not isinstance(intensity, int) or intensity < 1 or intensity > 10:
             return jsonify({"error": "intensity must be an integer between 1-10"}), 400
         
-        # Check if mood already logged for today
-        today = date.today()
-        existing_mood = MoodEntry.get_mood_by_date(user_id, today)
-        if existing_mood:
-            return jsonify({"error": "Mood already logged for today"}), 409
-        
-        # Create mood entry
+        # Create mood entry (allow multiple moods per day)
         mood_id = MoodEntry.create(user_id, mood, intensity, description, note)
         
         return jsonify({
@@ -53,7 +47,7 @@ def log_mood():
             "mood": mood,
             "intensity": intensity,
             "description": description,
-            "date": today.isoformat()
+            "date": datetime.now().isoformat()
         }), 201
         
     except Exception as e:
@@ -399,4 +393,90 @@ def share_recommendation():
         
     except Exception as e:
         logging.error(f"Error sharing recommendation: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500 
+
+@mood_journal_bp.route('/recommendation/feedback', methods=['POST'])
+def submit_recommendation_feedback():
+    """Submit like/dislike feedback for a recommendation"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        # Get user from JWT token
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({"error": "Authorization header required"}), 401
+        
+        token = auth_header.split(' ')[1]
+        user_id = User.verify_jwt_token(token)
+        if not user_id:
+            return jsonify({"error": "Invalid or expired token"}), 401
+        
+        # Validate required fields
+        recommendation_id = data.get('recommendation_id')
+        liked = data.get('liked')  # True for like, False for dislike
+        mood = data.get('mood', '').strip()
+        
+        if not recommendation_id:
+            return jsonify({"error": "recommendation_id is required"}), 400
+        
+        if liked is None:
+            return jsonify({"error": "liked field is required (true/false)"}), 400
+        
+        if not mood:
+            return jsonify({"error": "mood is required"}), 400
+        
+        # Check if recommendation exists
+        recommendation = Recommendation.get_by_id(recommendation_id)
+        if not recommendation:
+            return jsonify({"error": "Recommendation not found"}), 404
+        
+        # Add feedback to recommendation
+        Recommendation.add_feedback(recommendation_id, liked)
+        
+        # Create user feedback record
+        feedback_id = UserFeedback.create(user_id, recommendation_id, liked, mood)
+        
+        return jsonify({
+            "message": "Feedback submitted successfully",
+            "feedback_id": feedback_id,
+            "liked": liked
+        }), 201
+        
+    except Exception as e:
+        logging.error(f"Error submitting recommendation feedback: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
+
+@mood_journal_bp.route('/recommendation/feedback/history', methods=['GET'])
+def get_feedback_history():
+    """Get user's feedback history"""
+    try:
+        # Get user from JWT token
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({"error": "Authorization header required"}), 401
+        
+        token = auth_header.split(' ')[1]
+        user_id = User.verify_jwt_token(token)
+        if not user_id:
+            return jsonify({"error": "Invalid or expired token"}), 401
+        
+        # Get feedback history
+        feedback_history = Recommendation.get_user_feedback_history(user_id)
+        
+        # Convert ObjectIds to strings
+        for feedback in feedback_history:
+            feedback['_id'] = str(feedback['_id'])
+            feedback['user_id'] = str(feedback['user_id'])
+            feedback['recommendation_id'] = str(feedback['recommendation_id'])
+            feedback['created_at'] = feedback['created_at'].isoformat()
+        
+        return jsonify({
+            "feedback_history": feedback_history,
+            "count": len(feedback_history)
+        }), 200
+        
+    except Exception as e:
+        logging.error(f"Error getting feedback history: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500 

@@ -1,233 +1,140 @@
-from datetime import datetime, timedelta
+import logging
 from typing import Dict, Any, List
-from bson import ObjectId
-from flask import g
+from models.mood_journal import UserFeedback, Recommendation
 
 class FeedbackAnalysisService:
-    """Service for analyzing user feedback and improving recommendations"""
+    
+    @staticmethod
+    def get_user_insights(user_id: str) -> Dict[str, Any]:
+        """Get insights about user's feedback patterns"""
+        try:
+            # Get user's feedback history
+            feedback_history = Recommendation.get_user_feedback_history(user_id)
+            
+            if not feedback_history:
+                return {
+                    "total_feedback": 0,
+                    "like_ratio": 0,
+                    "favorite_moods": [],
+                    "least_favorite_moods": [],
+                    "recommendations": []
+                }
+            
+            # Analyze feedback patterns
+            mood_feedback = {}
+            type_feedback = {}
+            liked_count = 0
+            
+            for feedback in feedback_history:
+                mood = feedback.get('mood', '')
+                liked = feedback.get('liked', False)
+                
+                if liked:
+                    liked_count += 1
+                
+                # Track mood preferences
+                if mood not in mood_feedback:
+                    mood_feedback[mood] = {'liked': 0, 'disliked': 0}
+                
+                if liked:
+                    mood_feedback[mood]['liked'] += 1
+                else:
+                    mood_feedback[mood]['disliked'] += 1
+                
+                # Track recommendation type preferences
+                rec = Recommendation.get_by_id(str(feedback.get('recommendation_id')))
+                if rec:
+                    rec_type = rec.get('activity_type', '')
+                    if rec_type not in type_feedback:
+                        type_feedback[rec_type] = {'liked': 0, 'disliked': 0}
+                    
+                    if liked:
+                        type_feedback[rec_type]['liked'] += 1
+                    else:
+                        type_feedback[rec_type]['disliked'] += 1
+            
+            # Calculate insights
+            total_feedback = len(feedback_history)
+            like_ratio = liked_count / total_feedback if total_feedback > 0 else 0
+            
+            # Find favorite and least favorite moods
+            favorite_moods = []
+            least_favorite_moods = []
+            
+            for mood, stats in mood_feedback.items():
+                total_mood_feedback = stats['liked'] + stats['disliked']
+                if total_mood_feedback >= 2:  # Only consider moods with multiple feedback
+                    mood_ratio = stats['liked'] / total_mood_feedback
+                    if mood_ratio >= 0.7:  # 70% or higher like ratio
+                        favorite_moods.append(mood)
+                    elif mood_ratio <= 0.3:  # 30% or lower like ratio
+                        least_favorite_moods.append(mood)
+            
+            # Generate recommendations
+            recommendations = []
+            
+            if like_ratio < 0.5:
+                recommendations.append("Consider providing more diverse recommendation types")
+            
+            if favorite_moods:
+                recommendations.append(f"User tends to like recommendations when feeling: {', '.join(favorite_moods)}")
+            
+            if least_favorite_moods:
+                recommendations.append(f"User tends to dislike recommendations when feeling: {', '.join(least_favorite_moods)}")
+            
+            # Find best performing recommendation types
+            best_types = []
+            for rec_type, stats in type_feedback.items():
+                total_type_feedback = stats['liked'] + stats['disliked']
+                if total_type_feedback >= 2:
+                    type_ratio = stats['liked'] / total_type_feedback
+                    if type_ratio >= 0.6:
+                        best_types.append(rec_type)
+            
+            if best_types:
+                recommendations.append(f"User prefers these types: {', '.join(best_types)}")
+            
+            return {
+                "total_feedback": total_feedback,
+                "like_ratio": round(like_ratio, 2),
+                "favorite_moods": favorite_moods,
+                "least_favorite_moods": least_favorite_moods,
+                "best_recommendation_types": best_types,
+                "recommendations": recommendations,
+                "mood_breakdown": mood_feedback,
+                "type_breakdown": type_feedback
+            }
+            
+        except Exception as e:
+            logging.error(f"Error getting user insights: {e}")
+            return {
+                "total_feedback": 0,
+                "like_ratio": 0,
+                "favorite_moods": [],
+                "least_favorite_moods": [],
+                "recommendations": ["Unable to analyze feedback at this time"]
+            }
     
     @staticmethod
     def get_user_preferences(user_id: str) -> Dict[str, Any]:
-        """Analyze user feedback to determine preferences"""
+        """Get user's recommendation preferences based on feedback"""
         try:
-            feedback_history = list(g.db.user_feedback.find({
-                'user_id': ObjectId(user_id)
-            }).sort('created_at', -1))
+            insights = FeedbackAnalysisService.get_user_insights(user_id)
             
             preferences = {
-                'liked_activity_types': {},
-                'disliked_activity_types': {},
-                'mood_preferences': {},
-                'overall_sentiment': 0,
-                'total_feedback': len(feedback_history)
+                "preferred_moods": insights.get('favorite_moods', []),
+                "avoided_moods": insights.get('least_favorite_moods', []),
+                "preferred_types": insights.get('best_recommendation_types', []),
+                "overall_satisfaction": insights.get('like_ratio', 0)
             }
-            
-            for feedback in feedback_history:
-                recommendation = g.db.recommendations.find_one({
-                    '_id': feedback['recommendation_id']
-                })
-                
-                if recommendation:
-                    activity_type = recommendation.get('activity_type', 'unknown')
-                    mood = feedback.get('mood', 'unknown')
-                    
-                    if feedback['liked']:
-                        preferences['liked_activity_types'][activity_type] = \
-                            preferences['liked_activity_types'].get(activity_type, 0) + 1
-                    else:
-                        preferences['disliked_activity_types'][activity_type] = \
-                            preferences['disliked_activity_types'].get(activity_type, 0) + 1
-                    
-                    if mood not in preferences['mood_preferences']:
-                        preferences['mood_preferences'][mood] = {
-                            'liked': 0,
-                            'disliked': 0,
-                            'activity_types': {}
-                        }
-                    
-                    if feedback['liked']:
-                        preferences['mood_preferences'][mood]['liked'] += 1
-                        preferences['overall_sentiment'] += 1
-                    else:
-                        preferences['mood_preferences'][mood]['disliked'] += 1
-                        preferences['overall_sentiment'] -= 1
-                    
-                    mood_prefs = preferences['mood_preferences'][mood]
-                    if activity_type not in mood_prefs['activity_types']:
-                        mood_prefs['activity_types'][activity_type] = {'liked': 0, 'disliked': 0}
-                    
-                    if feedback['liked']:
-                        mood_prefs['activity_types'][activity_type]['liked'] += 1
-                    else:
-                        mood_prefs['activity_types'][activity_type]['disliked'] += 1
             
             return preferences
             
         except Exception as e:
-            print(f"Error analyzing user preferences: {e}")
-            return {}
-    
-    @staticmethod
-    def get_personalized_recommendations(user_id: str, mood: str, activity_type: str = None) -> List[Dict[str, Any]]:
-        """Get personalized recommendations based on user feedback history"""
-        try:
-            # Get user preferences
-            preferences = FeedbackAnalysisService.get_user_preferences(user_id)
-            
-            query = {'mood': mood.lower()}
-            if activity_type:
-                query['activity_type'] = activity_type
-            
-            recommendations = list(g.db.recommendations.find(query))
-            
-            scored_recommendations = []
-            
-            for rec in recommendations:
-                score = 0
-                rec_activity_type = rec.get('activity_type', 'unknown')
-                
-                likes = rec.get('likes', 0)
-                dislikes = rec.get('dislikes', 0)
-                total_feedback = rec.get('feedback_count', 0)
-                
-                if total_feedback > 0:
-                    community_score = (likes - dislikes) / total_feedback
-                    score += community_score * 0.3  
-                
-                if rec_activity_type in preferences.get('liked_activity_types', {}):
-                    score += 0.4  
-                
-                if rec_activity_type in preferences.get('disliked_activity_types', {}):
-                    score -= 0.4  
-                
-                mood_prefs = preferences.get('mood_preferences', {}).get(mood, {})
-                mood_activity_prefs = mood_prefs.get('activity_types', {}).get(rec_activity_type, {})
-                
-                mood_liked = mood_activity_prefs.get('liked', 0)
-                mood_disliked = mood_activity_prefs.get('disliked', 0)
-                mood_total = mood_liked + mood_disliked
-                
-                if mood_total > 0:
-                    mood_score = (mood_liked - mood_disliked) / mood_total
-                    score += mood_score * 0.3  
-                
-                scored_recommendations.append({
-                    'recommendation': rec,
-                    'score': score,
-                    'personalization_factors': {
-                        'community_rating': f"{(likes - dislikes) / total_feedback if total_feedback > 0 else 0:.2f}",
-                        'activity_type_preference': 'liked' if rec_activity_type in preferences.get('liked_activity_types', {}) else 'disliked' if rec_activity_type in preferences.get('disliked_activity_types', {}) else 'neutral',
-                        'mood_specific_score': f"{mood_score:.2f}" if mood_total > 0 else 'no_data'
-                    }
-                })
-            
-            scored_recommendations.sort(key=lambda x: x['score'], reverse=True)
-            
-            return scored_recommendations
-            
-        except Exception as e:
-            print(f"Error getting personalized recommendations: {e}")
-            return []
-    
-    @staticmethod
-    def get_user_insights(user_id: str) -> Dict[str, Any]:
-        """Get insights about user's mood and recommendation patterns"""
-        try:
-            mood_history = list(g.db.mood_entries.find({
-                'user_id': ObjectId(user_id)
-            }).sort('created_at', -1).limit(30))
-            
-            feedback_history = list(g.db.user_feedback.find({
-                'user_id': ObjectId(user_id)
-            }).sort('created_at', -1))
-            
-            insights = {
-                'mood_patterns': {},
-                'recommendation_effectiveness': {},
-                'preferred_activities': {},
-                'mood_trends': {}
-            }
-            
-            for mood_entry in mood_history:
-                mood = mood_entry.get('mood', 'unknown')
-                intensity = mood_entry.get('intensity', 5)
-                
-                if mood not in insights['mood_patterns']:
-                    insights['mood_patterns'][mood] = {
-                        'count': 0,
-                        'avg_intensity': 0,
-                        'total_intensity': 0
-                    }
-                
-                insights['mood_patterns'][mood]['count'] += 1
-                insights['mood_patterns'][mood]['total_intensity'] += intensity
-            
-            for mood, data in insights['mood_patterns'].items():
-                if data['count'] > 0:
-                    data['avg_intensity'] = data['total_intensity'] / data['count']
-            
-            for feedback in feedback_history:
-                mood = feedback.get('mood', 'unknown')
-                activity_type = 'unknown'
-                
-                recommendation = g.db.recommendations.find_one({
-                    '_id': feedback['recommendation_id']
-                })
-                
-                if recommendation:
-                    activity_type = recommendation.get('activity_type', 'unknown')
-                
-                key = f"{mood}_{activity_type}"
-                if key not in insights['recommendation_effectiveness']:
-                    insights['recommendation_effectiveness'][key] = {
-                        'liked': 0,
-                        'disliked': 0,
-                        'success_rate': 0
-                    }
-                
-                if feedback['liked']:
-                    insights['recommendation_effectiveness'][key]['liked'] += 1
-                else:
-                    insights['recommendation_effectiveness'][key]['disliked'] += 1
-                
-                total = insights['recommendation_effectiveness'][key]['liked'] + insights['recommendation_effectiveness'][key]['disliked']
-                if total > 0:
-                    insights['recommendation_effectiveness'][key]['success_rate'] = \
-                        insights['recommendation_effectiveness'][key]['liked'] / total
-            
-            preferences = FeedbackAnalysisService.get_user_preferences(user_id)
-            insights['preferred_activities'] = preferences.get('liked_activity_types', {})
-            
-            return insights
-            
-        except Exception as e:
-            print(f"Error getting user insights: {e}")
-            return {}
-    
-    @staticmethod
-    def should_avoid_activity_type(user_id: str, mood: str, activity_type: str) -> bool:
-        """Check if we should avoid recommending a specific activity type for this user and mood"""
-        try:
-            preferences = FeedbackAnalysisService.get_user_preferences(user_id)
-            
-            if activity_type in preferences.get('disliked_activity_types', {}):
-                disliked_count = preferences['disliked_activity_types'][activity_type]
-                liked_count = preferences.get('liked_activity_types', {}).get(activity_type, 0)
-                
-                if disliked_count > liked_count * 2:
-                    return True
-            
-            mood_prefs = preferences.get('mood_preferences', {}).get(mood, {})
-            mood_activity_prefs = mood_prefs.get('activity_types', {}).get(activity_type, {})
-            
-            mood_disliked = mood_activity_prefs.get('disliked', 0)
-            mood_liked = mood_activity_prefs.get('liked', 0)
-            
-            if mood_disliked > mood_liked:
-                return True
-            
-            return False
-            
-        except Exception as e:
-            print(f"Error checking activity type avoidance: {e}")
-            return False 
+            logging.error(f"Error getting user preferences: {e}")
+            return {
+                "preferred_moods": [],
+                "avoided_moods": [],
+                "preferred_types": [],
+                "overall_satisfaction": 0
+            } 

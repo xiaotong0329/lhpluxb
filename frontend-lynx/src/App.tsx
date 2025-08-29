@@ -6,10 +6,10 @@ interface User {
   id: string
   username: string
   email: string
-  age: number
-  nationality: string
-  gender: string
-  hobbies: string[]
+  age?: number
+  nationality?: string
+  gender?: string
+  hobbies?: string[]
   token: string
 }
 
@@ -32,9 +32,9 @@ interface Recommendation {
 }
 
 interface CommunityPost {
-  id: string
+  _id: string
   user_id: string
-  username: string
+  user_username: string
   mood: string
   activity_title: string
   activity_description: string
@@ -42,8 +42,8 @@ interface CommunityPost {
   mood_intensity: number
   description: string
   note: string
-  likes_count: number
-  stars_count: number
+  likes: number
+  stars: number
   comments_count: number
   created_at: string
   isLiked?: boolean
@@ -238,6 +238,40 @@ const api = {
     }
     
     return await response.json()
+  },
+
+  submitRecommendationFeedback: async (feedbackData: any, token: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/v1/mood/recommendation/feedback`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(feedbackData)
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to submit feedback')
+    }
+    
+    return await response.json()
+  },
+
+  getFeedbackHistory: async (token: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/v1/mood/recommendation/feedback/history`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to get feedback history')
+    }
+    
+    return await response.json()
   }
 }
 
@@ -257,7 +291,7 @@ export function App() {
     password: '',
     age: 25,
     nationality: 'American',
-    gender: 'prefer not to say',
+    gender: 'Prefer not to say',
     hobbies: ['reading', 'music']
   })
 
@@ -268,6 +302,7 @@ export function App() {
   const [inputModalValue, setInputModalValue] = useState('')
   const [inputModalField, setInputModalField] = useState('')
   const [inputModalType, setInputModalType] = useState<'text' | 'textarea'>('text')
+  const [caps, setCaps] = useState(false)
 
   // Mood logging state
   const [moodData, setMoodData] = useState({
@@ -306,7 +341,31 @@ export function App() {
     try {
       const token = user?.token || ''
       const result = await api.logMood(moodData, token)
-      setMoodEntries(prev => [...prev, { id: result.mood_id, ...moodData, date: new Date().toISOString() }])
+      
+      // Create new mood entry with current local date
+      const now = new Date()
+      const newMoodEntry = { 
+        id: result.mood_id, 
+        ...moodData, 
+        date: now.toISOString() 
+      }
+      
+      // Update mood entries
+      setMoodEntries(prev => [...prev, newMoodEntry])
+      
+      // Update calendar mood entries
+      setCalendarMoodEntries(prev => {
+        const dateKey = formatDateKey(now)
+        const existingEntries = prev[dateKey] || []
+        return {
+          ...prev,
+          [dateKey]: [...existingEntries, newMoodEntry]
+        }
+      })
+      
+      // Reset current recommendation to ensure fresh content
+      setCurrentRecommendation(null)
+      
       setCurrentView('recommendations')
     } catch (error) {
       console.error('Mood logging error:', error)
@@ -319,7 +378,13 @@ export function App() {
     setIsLoading(true)
     try {
       const token = user?.token || ''
-      const result = await api.getRecommendation(moodData, token)
+      // Add timestamp to ensure fresh recommendations
+      const requestData = {
+        ...moodData,
+        timestamp: Date.now(),
+        description: moodData.description ? `${moodData.description} (requested at ${new Date().toLocaleTimeString()})` : `Requested at ${new Date().toLocaleTimeString()}`
+      }
+      const result = await api.getRecommendation(requestData, token)
       setCurrentRecommendation(result.recommendation)
     } catch (error) {
       console.error('Recommendation error:', error)
@@ -346,11 +411,11 @@ export function App() {
       const token = user?.token || ''
       await api.likePost(postId, token)
       setCommunityPosts(prev => prev.map(post => {
-        if (post.id === postId) {
+        if (post._id === postId) {
           return {
             ...post,
             isLiked: !post.isLiked,
-            likes_count: post.isLiked ? post.likes_count - 1 : post.likes_count + 1
+            likes: post.isLiked ? post.likes - 1 : post.likes + 1
           }
         }
         return post
@@ -365,11 +430,11 @@ export function App() {
       const token = user?.token || ''
       await api.starPost(postId, token)
       setCommunityPosts(prev => prev.map(post => {
-        if (post.id === postId) {
+        if (post._id === postId) {
           return {
             ...post,
             isStarred: !post.isStarred,
-            stars_count: post.isStarred ? post.stars_count - 1 : post.stars_count + 1
+            stars: post.isStarred ? post.stars - 1 : post.stars + 1
           }
         }
         return post
@@ -402,6 +467,31 @@ export function App() {
     }
   }
 
+  const handleRecommendationFeedback = async (liked: boolean) => {
+    if (!currentRecommendation) return
+    
+    setIsLoading(true)
+    try {
+      const token = user?.token || ''
+      const feedbackData = {
+        recommendation_id: currentRecommendation.id,
+        liked: liked,
+        mood: moodData.mood
+      }
+      
+      await api.submitRecommendationFeedback(feedbackData, token)
+      alert(`Thank you for your feedback! You ${liked ? 'liked' : 'disliked'} this recommendation.`)
+      
+      // Optionally get a new recommendation after feedback
+      setCurrentRecommendation(null)
+    } catch (error) {
+      console.error('Recommendation feedback error:', error)
+      alert('Failed to submit feedback. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const openInputModal = (field: string, currentValue: string, type: 'text' | 'textarea' = 'text') => {
     setInputModalField(field)
     setInputModalValue(currentValue)
@@ -411,11 +501,23 @@ export function App() {
   }
 
   const handleInputModalSave = () => {
+    if (!inputModalField) return
+    
     if (inputModalField.startsWith('auth.')) {
       const authField = inputModalField.split('.')[1]
-      setAuthData(prev => ({ ...prev, [authField]: inputModalValue }))
+      if (!authField) return
+      
+      if (authField === 'age') {
+        setAuthData(prev => ({ ...prev, [authField]: parseInt(inputModalValue) || 0 }))
+      } else if (authField === 'hobbies') {
+        const hobbiesArray = inputModalValue.split(',').map(h => h.trim()).filter(h => h)
+        setAuthData(prev => ({ ...prev, [authField]: hobbiesArray }))
+      } else {
+        setAuthData(prev => ({ ...prev, [authField]: inputModalValue }))
+      }
     } else if (inputModalField.startsWith('mood.')) {
       const moodField = inputModalField.split('.')[1]
+      if (!moodField) return
       setMoodData(prev => ({ ...prev, [moodField]: inputModalValue }))
     }
     setShowInputModal(false)
@@ -438,6 +540,28 @@ export function App() {
       loadMoodEntriesForCalendar()
     }
   }, [user, currentView])
+
+  // Load mood entries when user logs in
+  useEffect(() => {
+    if (user?.token) {
+      loadMoodEntriesForCalendar()
+    }
+  }, [user])
+
+  // Handle clicking outside dropdowns
+  useEffect(() => {
+    const handleClickOutside = (event: any) => {
+      if (focusedInput && (focusedInput === 'auth.gender' || focusedInput === 'auth.nationality')) {
+        // Close dropdown if clicking outside
+        setFocusedInput(null)
+      }
+    }
+
+    if (focusedInput) {
+      document.addEventListener('click', handleClickOutside)
+      return () => document.removeEventListener('click', handleClickOutside)
+    }
+  }, [focusedInput])
 
   const loadMoodEntriesForCalendar = async () => {
     if (!user?.token) return
@@ -517,18 +641,23 @@ export function App() {
     const dateKey = formatDateKey(date)
     const entries = calendarMoodEntries[dateKey]
     if (entries && entries.length > 0) {
-      return entries[0].mood // Return the first mood entry for the date
+      // Return the last mood entry for the date (most recent)
+      return entries[entries.length - 1].mood
     }
     return null
   }
 
   const renderInputModal = () => {
-    if (!showInputModal) return null
+    if (!showInputModal || !inputModalField) return null
 
     const getFieldLabel = (field: string) => {
       const fieldMap: { [key: string]: string } = {
         'auth.username': 'Username',
         'auth.email': 'Email',
+        'auth.age': 'Age',
+        'auth.gender': 'Gender',
+        'auth.nationality': 'Nationality',
+        'auth.hobbies': 'Hobbies',
         'auth.password': 'Password',
         'mood.description': 'What happened today?',
         'mood.note': 'Additional notes'
@@ -545,7 +674,6 @@ export function App() {
     const row1 = ['q','w','e','r','t','y','u','i','o','p']
     const row2 = ['a','s','d','f','g','h','j','k','l']
     const row3 = ['z','x','c','v','b','n','m']
-    const [caps, setCaps] = useState(false)
 
     const addChar = (ch: string) => {
       const c = caps ? ch.toUpperCase() : ch
@@ -680,7 +808,7 @@ export function App() {
             <text className="auth-input-label">Username</text>
             <view 
               className={`auth-input-field ${focusedInput === 'auth.username' ? 'focused' : ''}`}
-              bindtap={() => openInputModal('auth.username', authData.username, 'text')}
+              bindtap={() => openInputModal('auth.username', authData.username || '', 'text')}
             >
               <text className="auth-input-text">
                 {authData.username || 'Enter username'}
@@ -689,24 +817,74 @@ export function App() {
           </view>
           
           {authMode === 'register' && (
-            <view className="auth-input-container">
-              <text className="auth-input-label">Email</text>
-              <view 
-                className={`auth-input-field ${focusedInput === 'auth.email' ? 'focused' : ''}`}
-                bindtap={() => openInputModal('auth.email', authData.email, 'text')}
-              >
-                <text className="auth-input-text">
-                  {authData.email || 'Enter email'}
-                </text>
+            <>
+              <view className="auth-input-container">
+                <text className="auth-input-label">Email</text>
+                <view 
+                  className={`auth-input-field ${focusedInput === 'auth.email' ? 'focused' : ''}`}
+                  bindtap={() => openInputModal('auth.email', authData.email || '', 'text')}
+                >
+                  <text className="auth-input-text">
+                    {authData.email || 'Enter email'}
+                  </text>
+                </view>
               </view>
-            </view>
+
+              <view className="auth-input-container">
+                <text className="auth-input-label">Age</text>
+                <view 
+                  className={`auth-input-field ${focusedInput === 'auth.age' ? 'focused' : ''}`}
+                  bindtap={() => openInputModal('auth.age', (authData.age || 25).toString(), 'text')}
+                >
+                  <text className="auth-input-text">
+                    {authData.age || 'Enter age'}
+                  </text>
+                </view>
+              </view>
+
+              <view className="auth-input-container">
+                <text className="auth-input-label">Gender</text>
+                <view 
+                  className={`auth-input-field ${focusedInput === 'auth.gender' ? 'focused' : ''}`}
+                  bindtap={() => openInputModal('auth.gender', authData.gender || '', 'text')}
+                >
+                  <text className="auth-input-text">
+                    {authData.gender || 'Select gender'}
+                  </text>
+                </view>
+              </view>
+
+              <view className="auth-input-container">
+                <text className="auth-input-label">Nationality</text>
+                <view 
+                  className={`auth-input-field ${focusedInput === 'auth.nationality' ? 'focused' : ''}`}
+                  bindtap={() => openInputModal('auth.nationality', authData.nationality || '', 'text')}
+                >
+                  <text className="auth-input-text">
+                    {authData.nationality || 'Select nationality'}
+                  </text>
+                </view>
+              </view>
+
+              <view className="auth-input-container">
+                <text className="auth-input-label">Hobbies (comma separated)</text>
+                <view 
+                  className={`auth-input-field ${focusedInput === 'auth.hobbies' ? 'focused' : ''}`}
+                  bindtap={() => openInputModal('auth.hobbies', (authData.hobbies || []).join(', '), 'text')}
+                >
+                  <text className="auth-input-text">
+                    {(authData.hobbies && authData.hobbies.length > 0) ? authData.hobbies.join(', ') : 'Enter hobbies (e.g., reading, music, sports)'}
+                  </text>
+                </view>
+              </view>
+            </>
           )}
           
           <view className="auth-input-container">
             <text className="auth-input-label">Password</text>
             <view 
               className={`auth-input-field ${focusedInput === 'auth.password' ? 'focused' : ''}`}
-              bindtap={() => openInputModal('auth.password', authData.password, 'text')}
+              bindtap={() => openInputModal('auth.password', authData.password || '', 'text')}
             >
               <text className="auth-input-text">
                 {authData.password ? '••••••••' : 'Enter password'}
@@ -775,8 +953,8 @@ export function App() {
           {/* Calendar days */}
           {getDaysInMonth(currentDate).map((date, index) => {
             const isCurrentMonth = date.getMonth() === currentDate.getMonth()
-            const mood = getMoodForDate(date)
             const hasEntry = hasMoodEntry(date)
+            const mood = hasEntry ? getMoodForDate(date) : null
             
             return (
               <view 
@@ -784,15 +962,10 @@ export function App() {
                 className={`calendar-day ${!isCurrentMonth ? 'other-month' : ''} ${isToday(date) ? 'today' : ''} ${isSelectedDate(date) ? 'selected' : ''} ${hasEntry ? 'has-mood' : ''}`}
                 bindtap={() => {
                   setSelectedDate(date)
-                  if (hasEntry) {
-                    setCurrentView('day-detail')
-                  }
                 }}
+                style={hasEntry && mood ? { backgroundColor: getMoodColor(mood) + '20' } : {}}
               >
                 <text className="calendar-day-number">{date.getDate()}</text>
-                {hasEntry && mood && (
-                  <text className="calendar-day-mood">{getMoodEmoji(mood)}</text>
-                )}
               </view>
             )
           })}
@@ -918,10 +1091,10 @@ export function App() {
           <text className="recommendation-reasoning">{currentRecommendation.reasoning}</text>
           
           <view className="recommendation-actions">
-            <view className="action-button like">
+            <view className="action-button like" bindtap={() => handleRecommendationFeedback(true)}>
               <text className="action-button-text">👍 Like</text>
             </view>
-            <view className="action-button dislike">
+            <view className="action-button dislike" bindtap={() => handleRecommendationFeedback(false)}>
               <text className="action-button-text">👎 Dislike</text>
             </view>
             <view className="action-button share" bindtap={handleShareRecommendation}>
@@ -933,82 +1106,20 @@ export function App() {
     </view>
   )
 
-  const renderDayDetail = () => {
-    if (!selectedDate) return null
-    
-    const dateKey = formatDateKey(selectedDate)
-    const dayEntries = calendarMoodEntries[dateKey] || []
-    
-    return (
-      <view className="day-detail-container">
-        <view className="day-detail-header">
-          <view className="back-button" bindtap={() => setCurrentView('main')}>
-            <text className="back-button-text">← Back</text>
-          </view>
-          <text className="day-detail-title">
-            {selectedDate.toLocaleDateString('en-US', { 
-              weekday: 'long', 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric' 
-            })}
-          </text>
-        </view>
-
-        {dayEntries.length === 0 ? (
-          <view className="no-entries">
-            <text className="no-entries-text">No mood entries for this day</text>
-            <view className="add-entry-button" bindtap={() => setCurrentView('mood-log')}>
-              <text className="add-entry-button-text">Add Mood Entry</text>
-            </view>
-          </view>
-        ) : (
-          <view className="day-entries">
-            {dayEntries.map(entry => (
-              <view key={entry.id} className="day-entry-card">
-                <view className="entry-header">
-                  <text className="entry-mood-emoji">{getMoodEmoji(entry.mood)}</text>
-                  <text className="entry-mood-name">{capitalizeFirst(entry.mood)}</text>
-                  <view className="entry-intensity">
-                    {Array.from({ length: entry.intensity }, (_, i) => (
-                      <text key={i} className="intensity-dot" />
-                    ))}
-                  </view>
-                </view>
-                
-                {entry.description && (
-                  <text className="entry-description">{entry.description}</text>
-                )}
-                
-                {entry.note && (
-                  <text className="entry-note">{entry.note}</text>
-                )}
-                
-                <text className="entry-time">
-                  {new Date(entry.date).toLocaleTimeString('en-US', { 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                  })}
-                </text>
-              </view>
-            ))}
-          </view>
-        )}
-      </view>
-    )
-  }
-
   const renderCommunity = () => (
     <view className="community-container">
       <view className="community-header">
+        <view className="back-button" bindtap={() => setCurrentView('main')}>
+          <text className="back-button-text">← Back</text>
+        </view>
         <text className="community-title">Community Feed</text>
       </view>
 
       <view className="community-posts">
         {communityPosts.map(post => (
-          <view key={post.id} className="community-post">
+          <view key={post._id} className="community-post">
             <view className="post-header">
-              <text className="post-username">{post.username}</text>
+              <text className="post-username">{post.user_username}</text>
               <text className="post-mood">{getMoodEmoji(post.mood)} {capitalizeFirst(post.mood)}</text>
             </view>
             
@@ -1022,15 +1133,15 @@ export function App() {
             <view className="post-stats">
               <view 
                 className={`post-stat ${post.isLiked ? 'liked' : ''}`}
-                bindtap={() => handleLikePost(post.id)}
+                bindtap={() => handleLikePost(post._id)}
               >
-                <text className="post-stat-text">👍 {post.likes_count}</text>
+                <text className="post-stat-text">👍 {post.likes}</text>
               </view>
               <view 
                 className={`post-stat ${post.isStarred ? 'starred' : ''}`}
-                bindtap={() => handleStarPost(post.id)}
+                bindtap={() => handleStarPost(post._id)}
               >
-                <text className="post-stat-text">⭐ {post.stars_count}</text>
+                <text className="post-stat-text">⭐ {post.stars}</text>
               </view>
               <view className="post-stat">
                 <text className="post-stat-text">💬 {post.comments_count}</text>
@@ -1038,12 +1149,6 @@ export function App() {
             </view>
           </view>
         ))}
-      </view>
-      
-      <view className="community-footer">
-        <view className="back-button" bindtap={() => setCurrentView('main')}>
-          <text className="back-button-text">← Back to Main</text>
-        </view>
       </view>
     </view>
   )
@@ -1055,7 +1160,6 @@ export function App() {
       {currentView === 'mood-log' && renderMoodLog()}
       {currentView === 'recommendations' && renderRecommendations()}
       {currentView === 'community' && renderCommunity()}
-      {currentView === 'day-detail' && renderDayDetail()}
       {renderInputModal()}
     </view>
   )

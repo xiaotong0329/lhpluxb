@@ -74,6 +74,13 @@ def get_posts():
         if limit > 50:
             limit = 50
         
+        # Get current user if authenticated
+        current_user_id = None
+        auth_header = request.headers.get('Authorization')
+        if auth_header and auth_header.startswith('Bearer '):
+            token = auth_header.split(' ')[1]
+            current_user_id = User.verify_jwt_token(token)
+        
         posts = CommunityPost.get_posts(
             limit=limit,
             skip=skip,
@@ -81,10 +88,19 @@ def get_posts():
             activity_type_filter=activity_type_filter if activity_type_filter else None
         )
         
+        # Add user interaction status to each post
         for post in posts:
             post['_id'] = str(post['_id'])
             post['user_id'] = str(post['user_id'])
             post['created_at'] = post['created_at'].isoformat()
+            
+            # Add like/star status for current user
+            if current_user_id:
+                post['isLiked'] = CommunityPost.is_post_liked_by_user(str(post['_id']), current_user_id)
+                post['isStarred'] = CommunityPost.is_post_starred_by_user(str(post['_id']), current_user_id)
+            else:
+                post['isLiked'] = False
+                post['isStarred'] = False
         
         return jsonify({
             "posts": posts,

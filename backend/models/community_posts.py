@@ -176,19 +176,21 @@ class CommunityPost:
 
     @staticmethod
     def is_post_liked_by_user(post_id: str, user_id: str):
-        """Check if a post is liked by a specific user"""
-        return g.db.post_likes.find_one({
+        """Check if a user has liked a specific post"""
+        like = g.db.post_likes.find_one({
             'post_id': ObjectId(post_id),
             'user_id': ObjectId(user_id)
-        }) is not None
+        })
+        return like is not None
 
     @staticmethod
     def is_post_starred_by_user(post_id: str, user_id: str):
-        """Check if a post is starred by a specific user"""
-        return g.db.post_stars.find_one({
+        """Check if a user has starred a specific post"""
+        star = g.db.post_stars.find_one({
             'post_id': ObjectId(post_id),
             'user_id': ObjectId(user_id)
-        }) is not None
+        })
+        return star is not None
 
 class PostComment:
     @staticmethod

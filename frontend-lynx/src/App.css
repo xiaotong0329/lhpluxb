@@ -25,6 +25,8 @@ body {
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow-y: auto;
+  max-height: 100vh;
 }
 
 /* Input Modal */
@@ -116,20 +118,26 @@ body {
 
 /* Auth Container */
 .auth-container {
+  min-height: 100vh;
   display: flex;
   justify-content: center;
-  align-items: center;
-  min-height: 100vh;
+  align-items: flex-start;
   padding: 20px;
+  overflow-y: auto;
+  max-height: 100vh;
+  position: relative;
 }
 
 .auth-card {
   background: rgba(255, 255, 255, 0.95);
   border-radius: 20px;
-  padding: 40px 30px;
+  padding: 30px 25px;
   width: 100%;
-  max-width: 400px;
+  max-width: 450px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  margin: 20px 0;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 .auth-title {
@@ -171,40 +179,110 @@ body {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
+/* Auth Form Styles */
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 15px;
+  margin-top: 20px;
 }
 
 .auth-input-container {
-  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .auth-input-label {
-  display: block;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
   color: #333;
-  margin-bottom: 8px;
 }
 
 .auth-input-field {
   background: #f8f9fa;
-  border: 2px solid transparent;
+  border: 2px solid #e9ecef;
   border-radius: 12px;
-  padding: 16px;
+  padding: 12px;
   transition: all 0.3s ease;
   cursor: pointer;
 }
 
 .auth-input-field.focused {
   border-color: #667eea;
-  background: white;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  background: #f8f9ff;
 }
 
 .auth-input-text {
+  font-size: 16px;
+  color: #333;
+}
+
+.auth-input-text:empty::before {
+  content: attr(placeholder);
+  color: #999;
+}
+
+/* Dropdown Styles */
+.auth-dropdown {
+  background: #f8f9fa;
+  border: 2px solid #e9ecef;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  position: relative;
+}
+
+.auth-dropdown.focused {
+  border-color: #667eea;
+  background: #f8f9ff;
+}
+
+.auth-dropdown-text {
+  font-size: 16px;
+  color: #333;
+}
+
+.auth-dropdown-arrow {
+  font-size: 12px;
+  color: #667eea;
+  transition: transform 0.3s ease;
+}
+
+.auth-dropdown.focused .auth-dropdown-arrow {
+  transform: rotate(180deg);
+}
+
+.auth-dropdown-options {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 2px solid #667eea;
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  max-height: 150px;
+  overflow-y: auto;
+  z-index: 1000;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.auth-dropdown-option {
+  padding: 10px 14px;
+  transition: background-color 0.2s ease;
+  cursor: pointer;
+}
+
+.auth-dropdown-option:hover {
+  background-color: #f8f9ff;
+}
+
+.auth-dropdown-option-text {
   font-size: 16px;
   color: #333;
 }
@@ -214,7 +292,7 @@ body {
   border-radius: 12px;
   padding: 16px;
   text-align: center;
-  margin-top: 20px;
+  margin-top: 15px;
   box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
   transition: all 0.3s ease;
 }
@@ -231,10 +309,10 @@ body {
 
 /* Main Container */
 .main-container {
-  padding: 0;
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+  padding: 20px;
+  overflow-y: auto;
+  max-height: 100vh;
 }
 
 .header {
@@ -247,11 +325,13 @@ body {
   font-size: 24px;
   font-weight: bold;
   color: white;
+  margin-top: 30px;
   margin-bottom: 8px;
 }
 
 .date-text {
   font-size: 16px;
+  margin-top: 10px;
   color: rgba(255, 255, 255, 0.8);
 }
 
@@ -353,8 +433,10 @@ body {
 
 /* Mood Log Container */
 .mood-log-container {
-  padding: 20px;
   min-height: 100vh;
+  padding: 20px;
+  overflow-y: auto;
+  max-height: 100vh;
 }
 
 .mood-log-header {
@@ -366,9 +448,10 @@ body {
 .back-button {
   background: rgba(255, 255, 255, 0.2);
   border-radius: 8px;
-  padding: 8px 12px;
-  margin-right: 15px;
+  padding: 4px 12px;
   transition: all 0.3s ease;
+  margin-top: 20px;
+  margin-right: auto;
 }
 
 .back-button:hover {
@@ -385,6 +468,8 @@ body {
   font-size: 24px;
   font-weight: bold;
   color: white;
+  margin-top: 40px;
+  margin-right: auto;
 }
 
 .mood-selector {
@@ -521,8 +606,10 @@ body {
 
 /* Recommendations Container */
 .recommendations-container {
-  padding: 20px;
   min-height: 100vh;
+  padding: 20px;
+  overflow-y: auto;
+  max-height: 100vh;
 }
 
 .recommendations-header {
@@ -532,9 +619,11 @@ body {
 }
 
 .recommendations-title {
-  font-size: 20px;
+  font-size: 30px;
   font-weight: bold;
   color: white;
+  margin-top: 30px;
+  margin-right: auto;
 }
 
 .loading-recommendations {
@@ -655,19 +744,24 @@ body {
 .community-container {
   padding: 20px;
   min-height: 100vh;
+  overflow-y: auto;
+  max-height: 100vh;
 }
 
 .community-header {
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-bottom: 30px;
+  margin-bottom: 15px;
+  margin-top: 40px;
 }
 
 .community-title {
   font-size: 20px;
   font-weight: bold;
   color: white;
+  margin-right: auto;
+  margin-top: auto;
 }
 
 .community-posts {
@@ -777,31 +871,39 @@ body {
 
 .community-footer .back-button-text {
   color: #667eea;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
 }
 
-/* Responsive Design */
-@media (max-width: 768px) {
-  .quick-actions {
-    flex-direction: column;
-  }
-  
-  .mood-selector {
-    flex-direction: column;
-  }
-  
-  .recommendation-actions {
-    flex-direction: column;
-  }
-  
-  .app {
-    padding: 16px;
-  }
-  
-  .auth-card {
-    padding: 24px;
-  }
+/* Floating Back Button */
+.floating-back-button {
+  position: fixed;
+  top: 30px;
+  left: 20px;
+  width: 50px;
+  height: 50px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 1000;
+  border: 2px solid #667eea;
+}
+
+.floating-back-button:hover {
+  transform: scale(1.0);
+  box-shadow: 0 6px 25px rgba(0, 0, 0, 0.2);
+  background: rgba(102, 126, 234, 0.1);
+}
+
+.floating-back-button .back-button-text {
+  color: #667eea;
+  font-size: 24px;
+  font-weight: bold;
 }
 
 /* Animations */
@@ -1054,20 +1156,14 @@ body {
 }
 
 .calendar-day.has-mood {
-  background: #ffc107;
-  color: #333;
+  /* Mood-specific colors are now handled by inline styles */
+  border: 2px solid #007bff;
 }
 
 .calendar-day-number {
   font-size: 16px;
   font-weight: 600;
   margin-bottom: 4px;
-}
-
-.calendar-day-mood {
-  font-size: 12px;
-  position: absolute;
-  bottom: 4px;
 }
 
 .bottom-actions {
@@ -1219,5 +1315,95 @@ body {
   font-size: 12px;
   color: #adb5bd;
   text-align: right;
+}
+
+/* Responsive Design for Mobile */
+@media (max-width: 768px) {
+  .auth-container {
+    padding: 10px;
+    align-items: flex-start;
+  }
+  
+  .auth-card {
+    padding: 20px 15px;
+    margin: 10px 0;
+    max-height: 95vh;
+  }
+  
+  .auth-form {
+    gap: 12px;
+    margin-top: 15px;
+  }
+  
+  .auth-input-field,
+  .auth-dropdown {
+    padding: 10px;
+  }
+  
+  .auth-dropdown-options {
+    max-height: 120px;
+  }
+  
+  .auth-dropdown-option {
+    padding: 8px 12px;
+  }
+  
+  .auth-dropdown-option-text {
+    font-size: 14px;
+  }
+  
+  .auth-button {
+    margin-top: 10px;
+    padding: 14px;
+  }
+  
+  .main-container,
+  .mood-log-container,
+  .recommendations-container,
+  .community-container {
+    padding: 15px;
+  }
+  
+  .quick-actions {
+    flex-direction: column;
+  }
+  
+  .mood-selector {
+    flex-direction: column;
+  }
+  
+  .recommendation-actions {
+    flex-direction: column;
+  }
+  
+  .app {
+    padding: 16px;
+  }
+  
+  /* Mobile adjustments for floating back button */
+  .floating-back-button {
+    top: 15px;
+    left: 15px;
+    width: 45px;
+    height: 45px;
+  }
+  
+  .floating-back-button .back-button-text {
+    font-size: 20px;
+  }
+  
+  /* Mobile calendar adjustments */
+  .calendar-section {
+    margin: 10px;
+    padding: 15px;
+  }
+  
+  .calendar-day {
+    padding: 6px;
+  }
+  
+  .calendar-day-number {
+    font-size: 14px;
+  }
 }
 

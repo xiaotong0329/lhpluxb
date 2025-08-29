@@ -13,7 +13,7 @@ MODEL_NAME = os.getenv("AI_MODEL_NAME", "deepseek/deepseek-r1-0528:free")
 class MoodAIService:
     _recommendation_cache = {}
     _last_api_call = 0
-    _api_cooldown = 30  # Shorter cooldown for mood recommendations
+    _api_cooldown = 1  # Very short cooldown for fresh recommendations
     
     MOOD_RECOMMENDATIONS = {
         "sad": {
@@ -166,30 +166,29 @@ class MoodAIService:
         }
     }
     
-    @staticmethod
     async def generate_mood_recommendation(mood: str, user_profile: Dict[str, Any], description: str = None, activity_type: str = None) -> Dict[str, Any]:
         """
         Generate personalized recommendations based on mood, user profile, and what happened
         """
-        cache_key = f"{mood}_{user_profile.get('age', 'unknown')}_{user_profile.get('gender', 'unknown')}_{activity_type or 'all'}_{hash(description) if description else 'no_desc'}"
-        
-        if cache_key in MoodAIService._recommendation_cache:
-            logging.info(f"Using cached recommendation for {mood}")
-            return MoodAIService._recommendation_cache[cache_key]
-        
-        current_time = time.time()
-        if current_time - MoodAIService._last_api_call < MoodAIService._api_cooldown:
-            logging.info(f"API cooldown active, using local generation for {mood}")
-            return MoodAIService._generate_local_recommendation(mood, user_profile, activity_type)
-        
+        # Always try to get fresh AI recommendations first
         if OPENROUTER_API_KEY:
-            try:
-                recommendation = await MoodAIService._generate_ai_recommendation(mood, user_profile, activity_type)
-                MoodAIService._recommendation_cache[cache_key] = recommendation
-                MoodAIService._last_api_call = current_time
-                return recommendation
-            except Exception as e:
-                logging.warning(f"AI service failed for {mood}: {e}")
+            current_time = time.time()
+            time_since_last_call = current_time - MoodAIService._last_api_call
+            logging.info(f"Time since last API call: {time_since_last_call}s, cooldown: {MoodAIService._api_cooldown}s")
+            
+            if time_since_last_call >= MoodAIService._api_cooldown:
+                try:
+                    logging.info(f"Attempting fresh AI recommendation for mood: {mood}")
+                    recommendation = await MoodAIService._generate_ai_recommendation(mood, user_profile, description, activity_type)
+                    MoodAIService._last_api_call = current_time
+                    logging.info(f"Successfully generated fresh AI recommendation for {mood}")
+                    return recommendation
+                except Exception as e:
+                    logging.warning(f"AI service failed for {mood}: {e}")
+                    logging.info(f"Falling back to local generation for {mood}")
+                    return MoodAIService._generate_local_recommendation(mood, user_profile, activity_type)
+            else:
+                logging.info(f"API cooldown active ({time_since_last_call}s < {MoodAIService._api_cooldown}s), using local generation for {mood}")
                 return MoodAIService._generate_local_recommendation(mood, user_profile, activity_type)
         
         logging.info(f"No API key available, using local generation for {mood}")
@@ -285,6 +284,9 @@ Make it personal and contextual. Consider what happened to them, their age, inte
         age = user_profile.get('age', 25)
         hobbies = user_profile.get('hobbies', [])
         
+        # Use timestamp to make selections more varied
+        timestamp = int(time.time())
+        
         if mood_lower in MoodAIService.MOOD_RECOMMENDATIONS:
             mood_recs = MoodAIService.MOOD_RECOMMENDATIONS[mood_lower]
         else:
@@ -294,22 +296,20 @@ Make it personal and contextual. Consider what happened to them, their age, inte
             if activity_type == "cocktail":
                 activity_type = "mocktail"
             elif not activity_type:
-                import random
                 available_types = [k for k in mood_recs.keys() if k != "cocktails"]
                 if available_types:
-                    activity_type = random.choice(available_types)
+                    activity_type = available_types[timestamp % len(available_types)]
                 else:
                     activity_type = "mocktail"
         
         if activity_type:
             rec_type = activity_type
         else:
-            import random
-            rec_type = random.choice(list(mood_recs.keys()))
+            rec_type = list(mood_recs.keys())[timestamp % len(mood_recs.keys())]
         
         if rec_type in mood_recs:
             recommendation = MoodAIService._personalize_recommendation(
-                mood_recs[rec_type], user_profile, rec_type
+                mood_recs[rec_type], user_profile, rec_type, timestamp
             )
         else:
             recommendation = {
@@ -340,37 +340,118 @@ Make it personal and contextual. Consider what happened to them, their age, inte
         }
     
     @staticmethod
-    def _personalize_recommendation(recommendations: List[Dict], user_profile: Dict[str, Any], rec_type: str) -> Dict[str, Any]:
+    def _personalize_recommendation(recommendations: List[Dict], user_profile: Dict[str, Any], rec_type: str, timestamp: int) -> Dict[str, Any]:
         """Personalize recommendation based on user profile"""
-        age = user_profile.get('age', 25)
-        hobbies = user_profile.get('hobbies', [])
+        # Filter recommendations based on user preferences
+        filtered_recs = recommendations
         
-        if age < 25:
-            filtered_recs = [r for r in recommendations if "energetic" in r.get("description", "").lower() or "modern" in r.get("description", "").lower()]
-        elif age > 50:
-            filtered_recs = [r for r in recommendations if "classic" in r.get("description", "").lower() or "timeless" in r.get("description", "").lower()]
-        else:
-            filtered_recs = recommendations
+        # Apply user-specific filters
+        if user_profile.get('age') and user_profile['age'] < 25:
+            # Younger users might prefer more energetic content
+            filtered_recs = [r for r in filtered_recs if 'energetic' in r.get('description', '').lower() or 'upbeat' in r.get('description', '').lower()]
         
+        if user_profile.get('hobbies'):
+            hobbies = [h.lower() for h in user_profile['hobbies']]
+            # Prioritize recommendations that match hobbies
+            hobby_matches = [r for r in filtered_recs if any(hobby in r.get('description', '').lower() for hobby in hobbies)]
+            if hobby_matches:
+                filtered_recs = hobby_matches
+        
+        # If no filtered results, use original list
         if not filtered_recs:
             filtered_recs = recommendations
         
-        for rec in filtered_recs:
-            for hobby in hobbies:
-                if hobby.lower() in rec.get("title", "").lower() or hobby.lower() in rec.get("description", "").lower():
-                    return {
-                        "type": rec_type,
-                        "title": rec["title"],
-                        "description": rec["description"],
-                        "reasoning": f"This matches your interest in {hobby}",
-                        "category": rec.get("category", "general")
-                    }
+        # Select recommendation using timestamp for variety
+        timestamp_mod = timestamp % len(filtered_recs)
+        rec = filtered_recs[timestamp_mod]
         
-        rec = filtered_recs[0]
         return {
-            "type": rec_type,
             "title": rec["title"],
             "description": rec["description"],
-            "reasoning": f"This {rec_type} is perfect for your current mood",
-            "category": rec.get("category", "general")
-        } 
+            "type": rec_type,
+            "category": rec.get("category", rec.get("genre", "general")),
+            "url": rec.get("url"),
+            "reasoning": f"Based on your profile as a {user_profile.get('age', 'young')}-year-old {user_profile.get('nationality', 'person')} who enjoys {', '.join(user_profile.get('hobbies', ['various activities']))}, this {rec_type} recommendation should resonate with your preferences."
+        }
+
+    @staticmethod
+    def analyze_user_feedback(user_id: str) -> Dict[str, Any]:
+        """Analyze user feedback to improve future recommendations"""
+        try:
+            from models.mood_journal import UserFeedback, Recommendation
+            from bson.objectid import ObjectId
+            
+            # Get user's feedback history
+            feedback_history = UserFeedback.get_user_feedback_history(user_id)
+            
+            if not feedback_history:
+                return {"preferences": {}, "improvements": []}
+            
+            # Analyze liked vs disliked recommendations
+            liked_recommendations = []
+            disliked_recommendations = []
+            
+            for feedback in feedback_history:
+                if feedback.get('liked'):
+                    liked_recommendations.append(feedback)
+                else:
+                    disliked_recommendations.append(feedback)
+            
+            # Extract patterns from liked recommendations
+            liked_patterns = {}
+            for feedback in liked_recommendations:
+                mood = feedback.get('mood', '')
+                if mood not in liked_patterns:
+                    liked_patterns[mood] = {'count': 0, 'types': []}
+                liked_patterns[mood]['count'] += 1
+                
+                # Get recommendation details
+                rec = Recommendation.get_by_id(str(feedback.get('recommendation_id')))
+                if rec:
+                    rec_type = rec.get('activity_type', '')
+                    if rec_type not in liked_patterns[mood]['types']:
+                        liked_patterns[mood]['types'].append(rec_type)
+            
+            # Extract patterns from disliked recommendations
+            disliked_patterns = {}
+            for feedback in disliked_recommendations:
+                mood = feedback.get('mood', '')
+                if mood not in disliked_patterns:
+                    disliked_patterns[mood] = {'count': 0, 'types': []}
+                disliked_patterns[mood]['count'] += 1
+                
+                # Get recommendation details
+                rec = Recommendation.get_by_id(str(feedback.get('recommendation_id')))
+                if rec:
+                    rec_type = rec.get('activity_type', '')
+                    if rec_type not in disliked_patterns[mood]['types']:
+                        disliked_patterns[mood]['types'].append(rec_type)
+            
+            # Generate improvement suggestions
+            improvements = []
+            
+            # Suggest avoiding disliked types for specific moods
+            for mood, pattern in disliked_patterns.items():
+                if pattern['count'] >= 2:  # If user disliked 2+ of same type
+                    for rec_type in pattern['types']:
+                        improvements.append(f"Avoid {rec_type} recommendations when user is feeling {mood}")
+            
+            # Suggest focusing on liked types for specific moods
+            for mood, pattern in liked_patterns.items():
+                if pattern['count'] >= 2:  # If user liked 2+ of same type
+                    for rec_type in pattern['types']:
+                        improvements.append(f"Prioritize {rec_type} recommendations when user is feeling {mood}")
+            
+            return {
+                "preferences": {
+                    "liked_patterns": liked_patterns,
+                    "disliked_patterns": disliked_patterns,
+                    "total_feedback": len(feedback_history),
+                    "like_ratio": len(liked_recommendations) / len(feedback_history) if feedback_history else 0
+                },
+                "improvements": improvements
+            }
+            
+        except Exception as e:
+            logging.error(f"Error analyzing user feedback: {e}")
+            return {"preferences": {}, "improvements": []} 

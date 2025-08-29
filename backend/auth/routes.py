@@ -44,10 +44,10 @@ def register():
         username = data.get("username", "").strip()
         email = data.get("email", "").strip()
         password = data.get("password", "")
-        age = data.get("age")
-        nationality = data.get("nationality", "").strip()
-        gender = data.get("gender", "").strip()
-        hobbies = data.get("hobbies", [])
+        age = data.get("age", 25)  # Default age
+        nationality = data.get("nationality", "Unknown").strip()
+        gender = data.get("gender", "Prefer not to say").strip()
+        hobbies = data.get("hobbies", ["reading", "music"])  # Default hobbies
 
         current_app.logger.info(f"Parsed data - username: '{username}', email: '{email}', password length: {len(password)}, age: {age}, nationality: '{nationality}', gender: '{gender}', hobbies: {hobbies}")
 
