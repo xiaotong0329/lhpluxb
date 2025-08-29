@@ -45,6 +45,8 @@ interface CommunityPost {
   stars_count: number
   comments_count: number
   created_at: string
+  isLiked?: boolean
+  isStarred?: boolean
 }
 
 // Mock API functions
@@ -134,7 +136,9 @@ const mockApi = {
           likes_count: 12,
           stars_count: 5,
           comments_count: 3,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          isLiked: false,
+          isStarred: false
         },
         {
           id: '2',
@@ -150,7 +154,9 @@ const mockApi = {
           likes_count: 8,
           stars_count: 12,
           comments_count: 7,
-          created_at: new Date(Date.now() - 3600000).toISOString()
+          created_at: new Date(Date.now() - 3600000).toISOString(),
+          isLiked: false,
+          isStarred: false
         }
       ]
     }
@@ -176,6 +182,12 @@ export function App() {
     gender: 'prefer not to say',
     hobbies: ['reading', 'music']
   })
+
+  // Input focus states for custom input handling
+  const [focusedInput, setFocusedInput] = useState<string | null>(null)
+  const [showInputModal, setShowInputModal] = useState(false)
+  const [inputModalValue, setInputModalValue] = useState('')
+  const [inputModalField, setInputModalField] = useState('')
 
   // Mood logging state
   const [moodData, setMoodData] = useState({
@@ -238,6 +250,55 @@ export function App() {
     }
   }
 
+  const handleLikePost = (postId: string) => {
+    setCommunityPosts(prev => prev.map(post => {
+      if (post.id === postId) {
+        return {
+          ...post,
+          isLiked: !post.isLiked,
+          likes_count: post.isLiked ? post.likes_count - 1 : post.likes_count + 1
+        }
+      }
+      return post
+    }))
+  }
+
+  const handleStarPost = (postId: string) => {
+    setCommunityPosts(prev => prev.map(post => {
+      if (post.id === postId) {
+        return {
+          ...post,
+          isStarred: !post.isStarred,
+          stars_count: post.isStarred ? post.stars_count - 1 : post.stars_count + 1
+        }
+      }
+      return post
+    }))
+  }
+
+  const openInputModal = (field: string, currentValue: string) => {
+    setInputModalField(field)
+    setInputModalValue(currentValue)
+    setShowInputModal(true)
+  }
+
+  const handleInputModalSave = () => {
+    if (inputModalField.startsWith('auth.')) {
+      const authField = inputModalField.split('.')[1]
+      setAuthData(prev => ({ ...prev, [authField]: inputModalValue }))
+    } else if (inputModalField.startsWith('mood.')) {
+      const moodField = inputModalField.split('.')[1]
+      setMoodData(prev => ({ ...prev, [moodField]: inputModalValue }))
+    }
+    setShowInputModal(false)
+    setFocusedInput(null)
+  }
+
+  const handleInputModalCancel = () => {
+    setShowInputModal(false)
+    setFocusedInput(null)
+  }
+
   useEffect(() => {
     if (currentView === 'community') {
       loadCommunityPosts()
@@ -256,6 +317,40 @@ export function App() {
 
   const capitalizeFirst = (str: string) => {
     return str.charAt(0).toUpperCase() + str.slice(1)
+  }
+
+  const renderInputModal = () => {
+    if (!showInputModal) return null
+
+    const getFieldLabel = (field: string) => {
+      const fieldMap: { [key: string]: string } = {
+        'auth.username': 'Username',
+        'auth.email': 'Email',
+        'auth.password': 'Password',
+        'mood.description': 'What happened today?',
+        'mood.note': 'Additional notes'
+      }
+      return fieldMap[field] || 'Input'
+    }
+
+    return (
+      <view className="input-modal-overlay">
+        <view className="input-modal">
+          <text className="input-modal-title">{getFieldLabel(inputModalField)}</text>
+          <view className="input-modal-field">
+            <text className="input-modal-text">{inputModalValue || 'Enter text...'}</text>
+          </view>
+          <view className="input-modal-actions">
+            <view className="input-modal-button cancel" bindtap={handleInputModalCancel}>
+              <text className="input-modal-button-text">Cancel</text>
+            </view>
+            <view className="input-modal-button save" bindtap={handleInputModalSave}>
+              <text className="input-modal-button-text">Save</text>
+            </view>
+          </view>
+        </view>
+      </view>
+    )
   }
 
   const renderAuth = () => (
@@ -282,24 +377,39 @@ export function App() {
         <view className="auth-form">
           <view className="auth-input-container">
             <text className="auth-input-label">Username</text>
-            <view className="auth-input-field">
-              <text className="auth-input-text">{authData.username || 'Enter username'}</text>
+            <view 
+              className={`auth-input-field ${focusedInput === 'auth.username' ? 'focused' : ''}`}
+              bindtap={() => openInputModal('auth.username', authData.username)}
+            >
+              <text className="auth-input-text">
+                {authData.username || 'Enter username'}
+              </text>
             </view>
           </view>
           
           {authMode === 'register' && (
             <view className="auth-input-container">
               <text className="auth-input-label">Email</text>
-              <view className="auth-input-field">
-                <text className="auth-input-text">{authData.email || 'Enter email'}</text>
+              <view 
+                className={`auth-input-field ${focusedInput === 'auth.email' ? 'focused' : ''}`}
+                bindtap={() => openInputModal('auth.email', authData.email)}
+              >
+                <text className="auth-input-text">
+                  {authData.email || 'Enter email'}
+                </text>
               </view>
             </view>
           )}
           
           <view className="auth-input-container">
             <text className="auth-input-label">Password</text>
-            <view className="auth-input-field">
-              <text className="auth-input-text">{authData.password ? '••••••••' : 'Enter password'}</text>
+            <view 
+              className={`auth-input-field ${focusedInput === 'auth.password' ? 'focused' : ''}`}
+              bindtap={() => openInputModal('auth.password', authData.password)}
+            >
+              <text className="auth-input-text">
+                {authData.password ? '••••••••' : 'Enter password'}
+              </text>
             </view>
           </view>
           
@@ -364,7 +474,9 @@ export function App() {
   const renderMoodLog = () => (
     <view className="mood-log-container">
       <view className="mood-log-header">
-        <text className="back-button" bindtap={() => setCurrentView('main')}>← Back</text>
+        <view className="back-button" bindtap={() => setCurrentView('main')}>
+          <text className="back-button-text">← Back</text>
+        </view>
         <text className="mood-log-title">How are you feeling?</text>
       </view>
 
@@ -399,15 +511,25 @@ export function App() {
       <view className="mood-inputs">
         <view className="mood-textarea-container">
           <text className="mood-textarea-label">What happened today? (optional)</text>
-          <view className="mood-textarea-field">
-            <text className="mood-textarea-text">{moodData.description || 'Describe your day...'}</text>
+          <view 
+            className={`mood-textarea-field ${focusedInput === 'mood.description' ? 'focused' : ''}`}
+            bindtap={() => openInputModal('mood.description', moodData.description)}
+          >
+            <text className="mood-textarea-text">
+              {moodData.description || 'Describe your day...'}
+            </text>
           </view>
         </view>
         
         <view className="mood-textarea-container">
           <text className="mood-textarea-label">Additional notes (optional)</text>
-          <view className="mood-textarea-field">
-            <text className="mood-textarea-text">{moodData.note || 'Add any thoughts...'}</text>
+          <view 
+            className={`mood-textarea-field ${focusedInput === 'mood.note' ? 'focused' : ''}`}
+            bindtap={() => openInputModal('mood.note', moodData.note)}
+          >
+            <text className="mood-textarea-text">
+              {moodData.note || 'Add any thoughts...'}
+            </text>
           </view>
         </view>
       </view>
@@ -426,7 +548,9 @@ export function App() {
   const renderRecommendations = () => (
     <view className="recommendations-container">
       <view className="recommendations-header">
-        <text className="back-button" bindtap={() => setCurrentView('main')}>← Back</text>
+        <view className="back-button" bindtap={() => setCurrentView('main')}>
+          <text className="back-button-text">← Back</text>
+        </view>
         <text className="recommendations-title">Your Personalized Recommendations</text>
       </view>
 
@@ -472,7 +596,9 @@ export function App() {
   const renderCommunity = () => (
     <view className="community-container">
       <view className="community-header">
-        <text className="back-button" bindtap={() => setCurrentView('main')}>← Back</text>
+        <view className="back-button" bindtap={() => setCurrentView('main')}>
+          <text className="back-button-text">← Back</text>
+        </view>
         <text className="community-title">Community Feed</text>
       </view>
 
@@ -492,9 +618,21 @@ export function App() {
             )}
             
             <view className="post-stats">
-              <text className="post-stat">👍 {post.likes_count}</text>
-              <text className="post-stat">⭐ {post.stars_count}</text>
-              <text className="post-stat">💬 {post.comments_count}</text>
+              <view 
+                className={`post-stat ${post.isLiked ? 'liked' : ''}`}
+                bindtap={() => handleLikePost(post.id)}
+              >
+                <text className="post-stat-text">👍 {post.likes_count}</text>
+              </view>
+              <view 
+                className={`post-stat ${post.isStarred ? 'starred' : ''}`}
+                bindtap={() => handleStarPost(post.id)}
+              >
+                <text className="post-stat-text">⭐ {post.stars_count}</text>
+              </view>
+              <view className="post-stat">
+                <text className="post-stat-text">💬 {post.comments_count}</text>
+              </view>
             </view>
           </view>
         ))}
@@ -509,6 +647,7 @@ export function App() {
       {currentView === 'mood-log' && renderMoodLog()}
       {currentView === 'recommendations' && renderRecommendations()}
       {currentView === 'community' && renderCommunity()}
+      {renderInputModal()}
     </view>
   )
 }
