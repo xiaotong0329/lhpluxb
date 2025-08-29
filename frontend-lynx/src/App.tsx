@@ -185,9 +185,11 @@ export function App() {
 
   // Input focus states for custom input handling
   const [focusedInput, setFocusedInput] = useState<string | null>(null)
+  // Input modal state for real-time text input
   const [showInputModal, setShowInputModal] = useState(false)
   const [inputModalValue, setInputModalValue] = useState('')
   const [inputModalField, setInputModalField] = useState('')
+  const [inputModalType, setInputModalType] = useState<'text' | 'textarea'>('text')
 
   // Mood logging state
   const [moodData, setMoodData] = useState({
@@ -276,9 +278,11 @@ export function App() {
     }))
   }
 
-  const openInputModal = (field: string, currentValue: string) => {
+  const openInputModal = (field: string, currentValue: string, type: 'text' | 'textarea' = 'text') => {
     setInputModalField(field)
     setInputModalValue(currentValue)
+    setInputModalType(type)
+    setFocusedInput(field)
     setShowInputModal(true)
   }
 
@@ -333,13 +337,111 @@ export function App() {
       return fieldMap[field] || 'Input'
     }
 
+    const isPassword = inputModalField === 'auth.password'
+
+    // Keyboard helpers
+    const baseKeys = ['1','2','3','4','5','6','7','8','9','0','@','_','.','-']
+    const baseRowA = baseKeys.slice(0, 10)
+    const baseRowB = baseKeys.slice(10)
+    const row1 = ['q','w','e','r','t','y','u','i','o','p']
+    const row2 = ['a','s','d','f','g','h','j','k','l']
+    const row3 = ['z','x','c','v','b','n','m']
+    const [caps, setCaps] = useState(false)
+
+    const addChar = (ch: string) => {
+      const c = caps ? ch.toUpperCase() : ch
+      setInputModalValue(prev => prev + c)
+    }
+    const addSpace = () => setInputModalValue(prev => prev + ' ')
+    const backspace = () => setInputModalValue(prev => prev.slice(0, - 1))
+    const clearAll = () => setInputModalValue('')
+
     return (
       <view className="input-modal-overlay">
         <view className="input-modal">
           <text className="input-modal-title">{getFieldLabel(inputModalField)}</text>
+
+          {/* Display field/content area */}
           <view className="input-modal-field">
-            <text className="input-modal-text">{inputModalValue || 'Enter text...'}</text>
+            <text className="input-modal-text">
+              {isPassword && inputModalValue ? '•'.repeat(inputModalValue.length) : (inputModalValue || 'Enter text...')}
+            </text>
           </view>
+
+          {/* If textarea, show quick actions for newline/space/clear */}
+          {inputModalType === 'textarea' && (
+            <view className="input-modal-textarea-actions">
+              <view className="input-modal-textarea-button" bindtap={clearAll}>
+                <text className="input-modal-textarea-button-text">Clear</text>
+              </view>
+              <view className="input-modal-textarea-button" bindtap={backspace}>
+                <text className="input-modal-textarea-button-text">← Back</text>
+              </view>
+              <view className="input-modal-textarea-button" bindtap={addSpace}>
+                <text className="input-modal-textarea-button-text">Space</text>
+              </view>
+            </view>
+          )}
+
+          {/* Keyboard anchored at bottom half */}
+          <view className="input-modal-keyboard">
+            <view className="kb-row ten">
+              {baseRowA.map(k => (
+                <view key={`ba-${k}`} className="kb-key" bindtap={() => addChar(k)}>
+                  <text className="kb-key-text">{k}</text>
+                </view>
+              ))}
+            </view>
+            {baseRowB.length > 0 && (
+              <view className="kb-row nine">
+                {baseRowB.map(k => (
+                  <view key={`bb-${k}`} className="kb-key" bindtap={() => addChar(k)}>
+                    <text className="kb-key-text">{k}</text>
+                  </view>
+                ))}
+              </view>
+            )}
+
+            <view className="kb-row ten">
+              {row1.map(k => (
+                <view key={`r1-${k}`} className="kb-key" bindtap={() => addChar(k)}>
+                  <text className="kb-key-text">{caps ? k.toUpperCase() : k}</text>
+                </view>
+              ))}
+            </view>
+
+            <view className="kb-row nine">
+              {row2.map(k => (
+                <view key={`r2-${k}`} className="kb-key" bindtap={() => addChar(k)}>
+                  <text className="kb-key-text">{caps ? k.toUpperCase() : k}</text>
+                </view>
+              ))}
+            </view>
+
+            <view className="kb-row nine">
+              <view className="kb-key wide" bindtap={() => setCaps(!caps)}>
+                <text className="kb-key-text">{caps ? 'Caps On' : 'Caps Off'}</text>
+              </view>
+              {row3.map(k => (
+                <view key={`r3-${k}`} className="kb-key" bindtap={() => addChar(k)}>
+                  <text className="kb-key-text">{caps ? k.toUpperCase() : k}</text>
+                </view>
+              ))}
+              <view className="kb-key wide" bindtap={backspace}>
+                <text className="kb-key-text">←</text>
+              </view>
+            </view>
+
+            <view className="kb-row nine">
+              <view className="kb-key xl" bindtap={addSpace}>
+                <text className="kb-key-text">Space</text>
+              </view>
+              <view className="kb-key" bindtap={clearAll}>
+                <text className="kb-key-text">Clear</text>
+              </view>
+            </view>
+          </view>
+
           <view className="input-modal-actions">
             <view className="input-modal-button cancel" bindtap={handleInputModalCancel}>
               <text className="input-modal-button-text">Cancel</text>
@@ -379,7 +481,7 @@ export function App() {
             <text className="auth-input-label">Username</text>
             <view 
               className={`auth-input-field ${focusedInput === 'auth.username' ? 'focused' : ''}`}
-              bindtap={() => openInputModal('auth.username', authData.username)}
+              bindtap={() => openInputModal('auth.username', authData.username, 'text')}
             >
               <text className="auth-input-text">
                 {authData.username || 'Enter username'}
@@ -392,7 +494,7 @@ export function App() {
               <text className="auth-input-label">Email</text>
               <view 
                 className={`auth-input-field ${focusedInput === 'auth.email' ? 'focused' : ''}`}
-                bindtap={() => openInputModal('auth.email', authData.email)}
+                bindtap={() => openInputModal('auth.email', authData.email, 'text')}
               >
                 <text className="auth-input-text">
                   {authData.email || 'Enter email'}
@@ -405,7 +507,7 @@ export function App() {
             <text className="auth-input-label">Password</text>
             <view 
               className={`auth-input-field ${focusedInput === 'auth.password' ? 'focused' : ''}`}
-              bindtap={() => openInputModal('auth.password', authData.password)}
+              bindtap={() => openInputModal('auth.password', authData.password, 'text')}
             >
               <text className="auth-input-text">
                 {authData.password ? '••••••••' : 'Enter password'}
@@ -513,7 +615,7 @@ export function App() {
           <text className="mood-textarea-label">What happened today? (optional)</text>
           <view 
             className={`mood-textarea-field ${focusedInput === 'mood.description' ? 'focused' : ''}`}
-            bindtap={() => openInputModal('mood.description', moodData.description)}
+            bindtap={() => openInputModal('mood.description', moodData.description, 'textarea')}
           >
             <text className="mood-textarea-text">
               {moodData.description || 'Describe your day...'}
@@ -525,7 +627,7 @@ export function App() {
           <text className="mood-textarea-label">Additional notes (optional)</text>
           <view 
             className={`mood-textarea-field ${focusedInput === 'mood.note' ? 'focused' : ''}`}
-            bindtap={() => openInputModal('mood.note', moodData.note)}
+            bindtap={() => openInputModal('mood.note', moodData.note, 'textarea')}
           >
             <text className="mood-textarea-text">
               {moodData.note || 'Add any thoughts...'}

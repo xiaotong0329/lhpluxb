@@ -41,6 +41,13 @@ body {
   z-index: 1000;
 }
 
+/* Modal sizing tweaks for small screens */
+.input-modal { padding: 20px; width: 92%; max-width: 360px; max-height: 88vh; overflow-y: auto; }
+.input-modal-title { font-size: 18px; margin-bottom: 14px; }
+.input-modal-field { padding: 12px; min-height: 48px; }
+.input-modal-actions { gap: 8px; }
+.input-modal-button { padding: 12px; }
+
 .input-modal {
   background: white;
   border-radius: 20px;
@@ -797,4 +804,123 @@ body {
 .mood-option:hover {
   animation: pulse 0.3s ease-in-out;
 }
+
+/* Textarea Modal Styles */
+.input-modal-textarea-container {
+  margin-bottom: 20px;
+}
+
+.input-modal-textarea {
+  background: #f8f9fa;
+  border: 2px solid #e9ecef;
+  border-radius: 12px;
+  padding: 16px;
+  min-height: 120px;
+  margin-bottom: 12px;
+}
+
+/* Textarea block size */
+.input-modal-textarea { min-height: 100px; padding: 12px; }
+.input-modal-textarea-actions { gap: 6px; }
+
+.input-modal-textarea-content {
+  font-size: 16px;
+  color: #333;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.input-modal-textarea-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.input-modal-textarea-button {
+  flex: 1;
+  background: #e9ecef;
+  border-radius: 8px;
+  padding: 8px 12px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.input-modal-textarea-button:hover {
+  background: #dee2e6;
+}
+
+.input-modal-textarea-button-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: #495057;
+}
+
+.input-modal-common-words {
+  margin-top: 16px;
+}
+
+.input-modal-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 8px;
+}
+
+.input-modal-words-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 6px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.input-modal-word-chip {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  padding: 6px 8px;
+  text-align: center;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.input-modal-word-chip:hover {
+  background: #e9ecef;
+  border-color: #adb5bd;
+}
+
+.input-modal-word-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: #495057;
+}
+
+/* Virtual Keyboard */
+.input-modal-keyboard { margin-top: 12px; }
+/* Virtual Keyboard - compact */
+.input-modal-keyboard { margin-top: 10px; max-height: 36vh; overflow-y: auto; }
+.kb-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.kb-key { background: #f1f3f5; border: 1px solid #dee2e6; border-radius: 8px; padding: 8px 9px; min-width: 28px; text-align: center; box-shadow: 0 1px 0 rgba(0,0,0,0.04); }
+.kb-key.wide { min-width: 60px; }
+.kb-key.xl { min-width: 120px; flex: 1; }
+.kb-key-text { font-size: 13px; font-weight: 600; color: #495057; }
+.kb-key:active { background: #e9ecef; }
+
+/* Anchor keyboard to bottom half within modal */
+.input-modal { display: flex; flex-direction: column; }
+.input-modal-field { flex-shrink: 0; }
+.input-modal-textarea-actions { flex-shrink: 0; }
+.input-modal-keyboard { margin-top: auto; max-height: 42vh; overflow-y: auto; padding-top: 8px; }
+
+/* Rows sized to 9–10 items */
+.kb-row { display: grid; gap: 6px; margin-top: 6px; }
+.kb-row.ten { grid-template-columns: repeat(10, 1fr); }
+.kb-row.nine { grid-template-columns: repeat(9, 1fr); }
+
+.kb-key { background: #f1f3f5; border: 1px solid #dee2e6; border-radius: 8px; padding: 10px 0; min-height: 36px; display: flex; align-items: center; justify-content: center; }
+.kb-key.wide { grid-column: span 2; }
+.kb-key.xl { grid-column: span 5; }
+.kb-key-text { font-size: 14px; font-weight: 600; color: #495057; }
+
+/* Keep actions visible */
+.input-modal-actions { position: sticky; bottom: 0; background: white; padding-top: 8px; }
 
