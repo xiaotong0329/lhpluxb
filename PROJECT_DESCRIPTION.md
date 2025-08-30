@@ -95,7 +95,7 @@ Mood Journal is a full-stack web and mobile application that combines mood track
 - **Node.js 18+**: JavaScript runtime for frontend development
 - **npm**: Package manager for Node.js dependencies
 - **Git**: Version control system
-- **VS Code/Cursor**: Integrated development environment
+- **VS Code**: Integrated development environment
 
 ## 📚 Libraries & Dependencies
 
