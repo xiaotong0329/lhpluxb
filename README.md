@@ -11,9 +11,9 @@ After cloning the repository, you need to set up your environment files:
    cp env.sample .env
    ```
 3. Edit `.env` with your configuration:
-   - MONGO_URI=mongodb+srv://xiaotonghuang361042066_db_user:ZYmkRrpygCw7rAf5@cluster0.9eceuet.mongodb.net/
-   - JWT_SECRET_KEY=y38969b0d
-   - OPENROUTER_API_KEY=deepseek/deepseek-r1:free
+   - `MONGO_URI`: Your MongoDB connection string
+   - `JWT_SECRET_KEY`: A secure random string for JWT tokens
+   - `OPENROUTER_API_KEY`: Your OpenRouter API key (optional, for AI features)
 
 ### Frontend Setup
 1. Navigate to the `frontend-lynx/` directory
