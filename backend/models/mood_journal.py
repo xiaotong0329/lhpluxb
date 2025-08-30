@@ -4,10 +4,14 @@ from flask import g
 
 class MoodEntry:
     @staticmethod
-    def create(user_id: str, mood: str, intensity: int, description: str = None, note: str = None):
+    def create(user_id: str, mood: str, intensity: int, description: str = None, note: str = None, mood_date: datetime = None):
         """Create a new mood entry"""
-        # Use local time instead of UTC to ensure correct date
-        now = datetime.now()
+        # Use provided date or UTC time to ensure consistent date handling across timezones
+        if mood_date is None:
+            now = datetime.now(timezone.utc)
+        else:
+            now = mood_date
+            
         mood_data = {
             'user_id': ObjectId(user_id),
             'mood': mood.lower(),

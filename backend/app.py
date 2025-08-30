@@ -65,7 +65,7 @@ def create_app():
     app.logger.setLevel(getattr(logging, config.LOG_LEVEL))
 
     # Register blueprints
-    app.register_blueprint(auth_bp)
+    app.register_blueprint(auth_bp, url_prefix='/api/v1/auth')
     app.register_blueprint(mood_journal_bp, url_prefix='/api/v1/mood')
     app.register_blueprint(community_bp, url_prefix='/api/v1/community')
 

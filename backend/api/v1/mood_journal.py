@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, g
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from auth.models import User
 from models.mood_journal import MoodEntry, Recommendation, UserFeedback
 from services.mood_ai_service import MoodAIService
@@ -32,6 +32,18 @@ def log_mood():
         description = data.get('description', '').strip()
         note = data.get('note', '').strip()
         
+        # Get optional date parameter (for logging moods on specific dates)
+        mood_date = data.get('date')
+        if mood_date:
+            try:
+                # Parse the date string from frontend
+                mood_date = datetime.fromisoformat(mood_date.replace('Z', '+00:00'))
+            except ValueError:
+                return jsonify({"error": "Invalid date format"}), 400
+        else:
+            # Use current UTC time if no date provided
+            mood_date = datetime.now(timezone.utc)
+        
         if not mood:
             return jsonify({"error": "mood is required"}), 400
         
@@ -39,7 +51,7 @@ def log_mood():
             return jsonify({"error": "intensity must be an integer between 1-10"}), 400
         
         # Create mood entry (allow multiple moods per day)
-        mood_id = MoodEntry.create(user_id, mood, intensity, description, note)
+        mood_id = MoodEntry.create(user_id, mood, intensity, description, note, mood_date)
         
         return jsonify({
             "message": "Mood logged successfully",
@@ -47,7 +59,7 @@ def log_mood():
             "mood": mood,
             "intensity": intensity,
             "description": description,
-            "date": datetime.now().isoformat()
+            "date": mood_date.isoformat()
         }), 201
         
     except Exception as e:
@@ -393,7 +405,67 @@ def share_recommendation():
         
     except Exception as e:
         logging.error(f"Error sharing recommendation: {str(e)}")
-        return jsonify({"error": "Internal server error"}), 500 
+        return jsonify({"error": "Internal server error"}), 500
+
+@mood_journal_bp.route('/share-ai-recommendation', methods=['POST'])
+def share_ai_recommendation():
+    """Share an AI-generated recommendation to the community"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        # Get user from JWT token
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({"error": "Authorization header required"}), 401
+        
+        token = auth_header.split(' ')[1]
+        user_id = User.verify_jwt_token(token)
+        if not user_id:
+            return jsonify({"error": "Invalid or expired token"}), 401
+        
+        # Validate required fields for AI recommendations
+        recommendation_title = data.get('recommendation_title', '').strip()
+        recommendation_type = data.get('recommendation_type', '').strip()
+        recommendation_description = data.get('recommendation_description', '').strip()
+        mood_data = data.get('mood_data', {})
+        description = data.get('description', '').strip()
+        
+        if not recommendation_title:
+            return jsonify({"error": "recommendation_title is required"}), 400
+        
+        if not mood_data or not mood_data.get('mood'):
+            return jsonify({"error": "mood_data with mood is required"}), 400
+        
+        mood = mood_data.get('mood', '').strip()
+        mood_intensity = mood_data.get('intensity', 5)  # Default to 5 if not provided
+        
+        # Import CommunityPost here to avoid circular imports
+        from models.community_posts import CommunityPost
+        
+        # Create a community post from the AI recommendation
+        post_id = CommunityPost.create(
+            user_id=user_id,
+            mood=mood,
+            activity_title=recommendation_title,
+            activity_description=recommendation_description,
+            activity_type=recommendation_type or 'recommendation',
+            mood_intensity=mood_intensity,
+            description=description,
+            note=f"Shared AI recommendation - {recommendation_description}",
+            is_public=True
+        )
+        
+        return jsonify({
+            "message": "AI recommendation shared successfully",
+            "post_id": post_id,
+            "recommendation_title": recommendation_title
+        }), 201
+        
+    except Exception as e:
+        logging.error(f"Error sharing AI recommendation: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
 
 @mood_journal_bp.route('/recommendation/feedback', methods=['POST'])
 def submit_recommendation_feedback():
@@ -446,6 +518,66 @@ def submit_recommendation_feedback():
         
     except Exception as e:
         logging.error(f"Error submitting recommendation feedback: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
+
+@mood_journal_bp.route('/ai-recommendation/feedback', methods=['POST'])
+def submit_ai_recommendation_feedback():
+    """Submit like/dislike feedback for AI-generated recommendations"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        # Get user from JWT token
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({"error": "Authorization header required"}), 401
+        
+        token = auth_header.split(' ')[1]
+        user_id = User.verify_jwt_token(token)
+        if not user_id:
+            return jsonify({"error": "Invalid or expired token"}), 401
+        
+        # Validate required fields
+        recommendation_title = data.get('recommendation_title', '').strip()
+        recommendation_type = data.get('recommendation_type', '').strip()
+        recommendation_description = data.get('recommendation_description', '').strip()
+        liked = data.get('liked')  # True for like, False for dislike
+        mood = data.get('mood', '').strip()
+        
+        if not recommendation_title:
+            return jsonify({"error": "recommendation_title is required"}), 400
+        
+        if liked is None:
+            return jsonify({"error": "liked field is required (true/false)"}), 400
+        
+        if not mood:
+            return jsonify({"error": "mood is required"}), 400
+        
+        # For AI recommendations, we'll store the feedback in a simple way
+        # You could extend this to store in a separate collection for AI feedback
+        feedback_data = {
+            'user_id': user_id,
+            'recommendation_title': recommendation_title,
+            'recommendation_type': recommendation_type,
+            'recommendation_description': recommendation_description,
+            'liked': liked,
+            'mood': mood,
+            'created_at': datetime.now(),
+            'is_ai_recommendation': True
+        }
+        
+        # For now, just log the feedback (you could store it in a database later)
+        logging.info(f"AI Recommendation Feedback: {feedback_data}")
+        
+        return jsonify({
+            "message": "AI recommendation feedback submitted successfully",
+            "liked": liked,
+            "recommendation_title": recommendation_title
+        }), 201
+        
+    except Exception as e:
+        logging.error(f"Error submitting AI recommendation feedback: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500
 
 @mood_journal_bp.route('/recommendation/feedback/history', methods=['GET'])

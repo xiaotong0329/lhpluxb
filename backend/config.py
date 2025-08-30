@@ -1,8 +1,14 @@
 import os
+import logging
+from datetime import timedelta
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Configure logging to reduce MongoDB OCSP messages
+logging.getLogger('pymongo.ocsp_support').setLevel(logging.WARNING)
+logging.getLogger('pymongo').setLevel(logging.WARNING)
 
 class Config:
     # Database Configuration

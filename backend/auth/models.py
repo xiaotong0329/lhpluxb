@@ -40,21 +40,18 @@ class User:
             return None
 
     @staticmethod
-    def update_profile(user_id: str, age: int = None, nationality: str = None, gender: str = None, hobbies: list = None):
-        update_data = {'updated_at': datetime.now(timezone.utc)}
-        if age is not None:
-            update_data['age'] = age
-        if nationality is not None:
-            update_data['nationality'] = nationality
-        if gender is not None:
-            update_data['gender'] = gender
-        if hobbies is not None:
-            update_data['hobbies'] = hobbies
-            
-        g.db.users.update_one(
-            {'_id': ObjectId(user_id)},
-            {'$set': update_data}
-        )
+    def update_profile(user_id: str, update_data: dict):
+        update_data['updated_at'] = datetime.now(timezone.utc)
+        
+        try:
+            result = g.db.users.update_one(
+                {'_id': ObjectId(user_id)},
+                {'$set': update_data}
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            print(f"Error updating profile: {e}")
+            return False
 
     @staticmethod
     def update_last_login(user_id: str):

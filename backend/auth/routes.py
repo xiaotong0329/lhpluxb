@@ -5,7 +5,7 @@ import jwt
 from auth.models import User
 from auth.utils import hash_password, verify_password
 
-auth_bp = Blueprint("auth_bp", __name__, url_prefix="/auth")
+auth_bp = Blueprint("auth_bp", __name__)
 
 def require_auth(f):
     @wraps(f)
@@ -106,12 +106,96 @@ def login():
         user_safe = {
             'id': str(user_doc['_id']),
             'username': user_doc['username'],
-            'email': user_doc['email']
+            'email': user_doc['email'],
+            'age': user_doc.get('age', 25),
+            'nationality': user_doc.get('nationality', 'Unknown'),
+            'gender': user_doc.get('gender', 'Prefer not to say'),
+            'hobbies': user_doc.get('hobbies', ['reading', 'music'])
         }
         return jsonify({'message': 'Login successful', 'token': token, 'user': user_safe}), 200
     except Exception as e:
         current_app.logger.error(f"Login error: {str(e)}")
         return jsonify({'error': 'Login failed'}), 500
+
+@auth_bp.route("/profile", methods=["PUT"])
+@require_auth
+def update_profile():
+    try:
+        data = request.get_json() or {}
+        current_app.logger.info(f"Profile update attempt for user {g.current_user['_id']} with data: {data}")
+        
+        username = data.get("username", "").strip()
+        age = data.get("age", 25)
+        nationality = data.get("nationality", "").strip()
+        gender = data.get("gender", "").strip()
+        hobbies = data.get("hobbies", [])
+
+        if not username:
+            return jsonify({'error': 'Username is required'}), 400
+        
+        if age is not None and (not isinstance(age, int) or age < 1 or age > 120):
+            return jsonify({'error': 'Age must be an integer between 1-120'}), 400
+        
+        if not isinstance(hobbies, list):
+            return jsonify({'error': 'Hobbies must be a list'}), 400
+
+        # Check if username is already taken by another user
+        existing_user = User.find_by_username_or_email(username)
+        if existing_user and existing_user['_id'] != g.current_user['_id']:
+            return jsonify({'error': 'Username already exists'}), 409
+
+        # Update user profile
+        update_data = {
+            'username': username,
+            'age': age,
+            'nationality': nationality,
+            'gender': gender,
+            'hobbies': hobbies
+        }
+        
+        success = User.update_profile(g.current_user['_id'], update_data)
+        if not success:
+            return jsonify({'error': 'Failed to update profile'}), 500
+
+        current_app.logger.info(f"Profile updated successfully for user {g.current_user['_id']}")
+        return jsonify({
+            'message': 'Profile updated successfully',
+            'user': {
+                'id': str(g.current_user['_id']),
+                'username': username,
+                'email': g.current_user['email'],
+                'age': g.current_user.get('age', 25),
+                'nationality': nationality,
+                'gender': gender,
+                'hobbies': hobbies
+            }
+        }), 200
+    except Exception as e:
+        current_app.logger.error(f"Profile update error: {str(e)}")
+        return jsonify({'error': 'Profile update failed'}), 500
+
+@auth_bp.route("/profile", methods=["GET"])
+@require_auth
+def get_profile():
+    """Get user profile data"""
+    try:
+        current_app.logger.info(f"Profile retrieval request for user {g.current_user['_id']}")
+        
+        return jsonify({
+            'message': 'Profile retrieved successfully',
+            'user': {
+                'id': str(g.current_user['_id']),
+                'username': g.current_user['username'],
+                'email': g.current_user['email'],
+                'age': g.current_user.get('age', 25),
+                'nationality': g.current_user.get('nationality', 'Unknown'),
+                'gender': g.current_user.get('gender', 'Prefer not to say'),
+                'hobbies': g.current_user.get('hobbies', ['reading', 'music'])
+            }
+        }), 200
+    except Exception as e:
+        current_app.logger.error(f"Profile retrieval error: {str(e)}")
+        return jsonify({'error': 'Profile retrieval failed'}), 500
 
 @auth_bp.route("/verify", methods=["POST"])
 def verify_token():

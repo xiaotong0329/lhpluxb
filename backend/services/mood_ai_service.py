@@ -13,7 +13,7 @@ MODEL_NAME = os.getenv("AI_MODEL_NAME", "deepseek/deepseek-r1-0528:free")
 class MoodAIService:
     _recommendation_cache = {}
     _last_api_call = 0
-    _api_cooldown = 1  # Very short cooldown for fresh recommendations
+    _api_cooldown = 3  # Reduced cooldown to 3 seconds to make AI recommendations more likely
     
     MOOD_RECOMMENDATIONS = {
         "sad": {
@@ -263,10 +263,17 @@ Make it personal and contextual. Consider what happened to them, their age, inte
                 )
                 
                 if response.status_code == 429:
+                    # Rate limited - increase cooldown temporarily
+                    MoodAIService._api_cooldown = min(60, MoodAIService._api_cooldown * 2)  # Double cooldown, max 60s
+                    logging.warning(f"Rate limited by AI service. Increasing cooldown to {MoodAIService._api_cooldown}s")
                     raise Exception("Rate limited by AI service")
                 
                 response.raise_for_status()
                 response_data = response.json()
+                
+                # Reset cooldown on successful response
+                MoodAIService._api_cooldown = 3
+                
                 ai_response_content = response_data["choices"][0]["message"]["content"]
                 
                 parsed_recommendation = json.loads(ai_response_content)
@@ -278,10 +285,12 @@ Make it personal and contextual. Consider what happened to them, their age, inte
     
     @staticmethod
     def _generate_local_recommendation(mood: str, user_profile: Dict[str, Any], description: str = None, activity_type: str = None) -> Dict[str, Any]:
-        """Generate recommendation using local templates"""
+        """Generate recommendation using local templates with enhanced personalization"""
         
         mood_lower = mood.lower()
         age = user_profile.get('age', 25)
+        gender = user_profile.get('gender', 'unknown')
+        nationality = user_profile.get('nationality', 'unknown')
         hobbies = user_profile.get('hobbies', [])
         
         # Use timestamp to make selections more varied
@@ -292,6 +301,7 @@ Make it personal and contextual. Consider what happened to them, their age, inte
         else:
             mood_recs = MoodAIService.MOOD_RECOMMENDATIONS["happy"]
         
+        # Enhanced age-based filtering
         if age and age < 18:
             if activity_type == "cocktail":
                 activity_type = "mocktail"
@@ -301,6 +311,11 @@ Make it personal and contextual. Consider what happened to them, their age, inte
                     activity_type = available_types[timestamp % len(available_types)]
                 else:
                     activity_type = "mocktail"
+        elif age and age < 25:
+            # Younger users might prefer more energetic content
+            if not activity_type:
+                energetic_types = ["music", "activities", "movies"]
+                activity_type = energetic_types[timestamp % len(energetic_types)]
         
         if activity_type:
             rec_type = activity_type
@@ -309,7 +324,7 @@ Make it personal and contextual. Consider what happened to them, their age, inte
         
         if rec_type in mood_recs:
             recommendation = MoodAIService._personalize_recommendation(
-                mood_recs[rec_type], user_profile, rec_type, timestamp
+                mood_recs[rec_type], user_profile, rec_type, timestamp, description
             )
         else:
             recommendation = {
@@ -340,22 +355,40 @@ Make it personal and contextual. Consider what happened to them, their age, inte
         }
     
     @staticmethod
-    def _personalize_recommendation(recommendations: List[Dict], user_profile: Dict[str, Any], rec_type: str, timestamp: int) -> Dict[str, Any]:
-        """Personalize recommendation based on user profile"""
+    def _personalize_recommendation(recommendations: List[Dict], user_profile: Dict[str, Any], rec_type: str, timestamp: int, description: str = None) -> Dict[str, Any]:
+        """Personalize recommendation based on user profile with enhanced logic"""
         # Filter recommendations based on user preferences
         filtered_recs = recommendations
         
-        # Apply user-specific filters
-        if user_profile.get('age') and user_profile['age'] < 25:
-            # Younger users might prefer more energetic content
-            filtered_recs = [r for r in filtered_recs if 'energetic' in r.get('description', '').lower() or 'upbeat' in r.get('description', '').lower()]
+        age = user_profile.get('age', 25)
+        gender = user_profile.get('gender', 'unknown')
+        nationality = user_profile.get('nationality', 'unknown')
+        hobbies = [h.lower() for h in user_profile.get('hobbies', [])]
         
-        if user_profile.get('hobbies'):
-            hobbies = [h.lower() for h in user_profile['hobbies']]
+        # Enhanced age-based filtering
+        if age and age < 25:
+            # Younger users might prefer more energetic content
+            energetic_keywords = ['energetic', 'upbeat', 'fun', 'exciting', 'adventure', 'party']
+            energetic_recs = [r for r in filtered_recs if any(keyword in r.get('description', '').lower() for keyword in energetic_keywords)]
+            if energetic_recs:
+                filtered_recs = energetic_recs
+        
+        # Enhanced hobby-based filtering
+        if hobbies:
             # Prioritize recommendations that match hobbies
-            hobby_matches = [r for r in filtered_recs if any(hobby in r.get('description', '').lower() for hobby in hobbies)]
+            hobby_matches = [r for r in filtered_recs if any(hobby in r.get('description', '').lower() or hobby in r.get('title', '').lower() for hobby in hobbies)]
             if hobby_matches:
                 filtered_recs = hobby_matches
+        
+        # Cultural/nationality-based filtering
+        if nationality and nationality.lower() != 'unknown':
+            # Could add cultural preferences here
+            pass
+        
+        # Gender-based preferences (if relevant)
+        if gender and gender.lower() != 'unknown':
+            # Could add gender-specific preferences here
+            pass
         
         # If no filtered results, use original list
         if not filtered_recs:
@@ -365,13 +398,36 @@ Make it personal and contextual. Consider what happened to them, their age, inte
         timestamp_mod = timestamp % len(filtered_recs)
         rec = filtered_recs[timestamp_mod]
         
+        # Build personalized reasoning
+        reasoning_parts = []
+        reasoning_parts.append(f"This {rec_type} is perfect for your {user_profile.get('mood', 'current')} mood")
+        
+        if description:
+            reasoning_parts.append(f"Given what happened: '{description}'")
+        
+        if hobbies:
+            reasoning_parts.append(f"Since you enjoy {', '.join(hobbies)}, this should resonate with your interests")
+        
+        if age:
+            if age < 18:
+                reasoning_parts.append("As a young person, this age-appropriate recommendation")
+            elif age < 25:
+                reasoning_parts.append("As a young adult, this energetic option")
+            else:
+                reasoning_parts.append(f"As a {age}-year-old, this mature choice")
+        
+        if nationality and nationality.lower() != 'unknown':
+            reasoning_parts.append(f"Considering your {nationality} background")
+        
+        reasoning = ". ".join(reasoning_parts) + "."
+        
         return {
             "title": rec["title"],
             "description": rec["description"],
             "type": rec_type,
             "category": rec.get("category", rec.get("genre", "general")),
             "url": rec.get("url"),
-            "reasoning": f"Based on your profile as a {user_profile.get('age', 'young')}-year-old {user_profile.get('nationality', 'person')} who enjoys {', '.join(user_profile.get('hobbies', ['various activities']))}, this {rec_type} recommendation should resonate with your preferences."
+            "reasoning": reasoning
         }
 
     @staticmethod
