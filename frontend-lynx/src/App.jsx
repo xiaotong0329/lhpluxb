@@ -6,7 +6,9 @@ const API_BASE_URL = 'http://127.0.0.1:8080';
 
 const api = {
   login: async (identifier, password) => {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    console.log('Frontend login API called with:', { identifier, password: password ? '***' : 'empty' });
+    
+    const response = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -14,16 +16,32 @@ const api = {
       body: JSON.stringify({ identifier, password }),
     });
 
+    console.log('Login response status:', response.status);
+    console.log('Login response ok:', response.ok);
+
     if (!response.ok) {
       const error = await response.json();
+      console.error('Login error response:', error);
       throw new Error(error.error || 'Login failed');
     }
 
-    return await response.json();
+    const result = await response.json();
+    console.log('Login success response:', result);
+    return result;
   },
 
   register: async (userData) => {
-    const response = await fetch(`${API_BASE_URL}/auth/register`, {
+    console.log('Frontend register API called with:', { 
+      username: userData.username,
+      email: userData.email,
+      age: userData.age,
+      nationality: userData.nationality,
+      gender: userData.gender,
+      hobbies: userData.hobbies,
+      password: userData.password ? '***' : 'empty'
+    });
+    
+    const response = await fetch(`${API_BASE_URL}/api/v1/auth/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -31,12 +49,18 @@ const api = {
       body: JSON.stringify(userData),
     });
 
+    console.log('Register response status:', response.status);
+    console.log('Register response ok:', response.ok);
+
     if (!response.ok) {
       const error = await response.json();
+      console.error('Register error response:', error);
       throw new Error(error.error || 'Registration failed');
     }
 
-    return await response.json();
+    const result = await response.json();
+    console.log('Register success response:', result);
+    return result;
   },
 
   logMood: async (moodData, token) => {
@@ -203,6 +227,46 @@ const api = {
     return result;
   },
 
+  updateProfile: async (token, profileData) => {
+    const response = await fetch(`${API_BASE_URL}/api/v1/auth/profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(profileData),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      if (response.status === 401) {
+        throw new Error('Unauthorized: Invalid or expired token');
+      }
+      throw new Error(error.error || 'Failed to update profile');
+    }
+
+    return await response.json();
+  },
+
+  getUserProfile: async (token) => {
+    const response = await fetch(`${API_BASE_URL}/api/v1/auth/profile`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      if (response.status === 401) {
+        throw new Error('Unauthorized: Invalid or expired token');
+      }
+      throw new Error(error.error || 'Failed to get user profile');
+    }
+
+    return await response.json();
+  },
+
   submitRecommendationFeedback: async (feedbackData, token) => {
     console.log('API submitRecommendationFeedback called with:', feedbackData);
     
@@ -311,6 +375,15 @@ export function App() {
   const [calendarMoodEntries, setCalendarMoodEntries] = useState({});
   const [moodLogDate, setMoodLogDate] = useState(new Date()); // Date for logging mood
 
+  // Profile editing state
+  const [profileData, setProfileData] = useState({
+    username: '',
+    age: 25,
+    gender: '',
+    nationality: '',
+    hobbies: []
+  });
+
   // Utility functions
   const getMoodEmoji = (mood) => {
     const emojis = { happy: '😊', sad: '😢', anxious: '😰', excited: '🤩' };
@@ -364,6 +437,17 @@ export function App() {
 
   // Event handlers
   const handleAuth = async () => {
+    console.log('handleAuth called with authMode:', authMode);
+    console.log('authData:', {
+      username: authData.username,
+      email: authData.email,
+      age: authData.age,
+      nationality: authData.nationality,
+      gender: authData.gender,
+      hobbies: authData.hobbies,
+      password: authData.password ? '***' : 'empty'
+    });
+    
     setIsLoading(true);
     try {
       const result =
@@ -391,6 +475,7 @@ export function App() {
       console.log('User state set, view changed to main');
     } catch (error) {
       console.error('Auth error:', error);
+      alert('Authentication failed: ' + error.message);
     } finally {
       setIsLoading(false);
     }
@@ -737,6 +822,58 @@ export function App() {
     }
   };
 
+  const handleEnterEditProfile = async () => {
+    if (!user?.token) return;
+    
+    setIsLoading(true);
+    try {
+      // Fetch fresh user data from database
+      const result = await api.getUserProfile(user.token);
+      console.log('Fresh user data fetched:', result);
+      
+      // Update local user state with fresh data
+      setUser(prev => ({
+        ...prev,
+        ...result.user
+      }));
+      
+      // Initialize profile data with fresh user data
+      setProfileData({
+        username: result.user.username || '',
+        age: result.user.age || 25,
+        gender: result.user.gender || '',
+        nationality: result.user.nationality || '',
+        hobbies: result.user.hobbies || []
+      });
+      
+      // Update localStorage
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const updatedUser = { ...user, ...result.user };
+          localStorage.setItem('moodJournalUser', JSON.stringify(updatedUser));
+          console.log('Updated user data in localStorage');
+        }
+      } catch (error) {
+        console.error('Error updating localStorage:', error);
+      }
+      
+      setCurrentView('edit-profile');
+    } catch (error) {
+      console.error('Failed to fetch user profile:', error);
+      // Fallback to current user data
+      setProfileData({
+        username: user.username || '',
+        age: user.age || 25,
+        gender: user.gender || '',
+        nationality: user.nationality || '',
+        hobbies: user.hobbies || []
+      });
+      setCurrentView('edit-profile');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Load mood entries when user logs in
   useEffect(() => {
     if (user?.token) {
@@ -947,8 +1084,34 @@ export function App() {
   const renderMain = () => (
     <view className="main-container">
       <view className="header">
-        <text className="welcome-text">Welcome back, {user?.username}! 👋</text>
-        <text className="date-text">{new Date().toLocaleDateString()}</text>
+        <view style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          width: '100%'
+        }}>
+          <view style={{ flex: 1 }}>
+            <text className="welcome-text">Welcome back, {user?.username}! 👋</text>
+            <text className="date-text">{new Date().toLocaleDateString()}</text>
+          </view>
+          <view
+            className="profile-button"
+            bindtap={handleEnterEditProfile}
+            style={{
+              background: 'rgba(255, 255, 255, 0.2)',
+              borderRadius: '50%',
+              width: '40px',
+              height: '40px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease'
+            }}
+          >
+            <text style={{ fontSize: '20px' }}>👤</text>
+          </view>
+        </view>
       </view>
 
       <view className="calendar-section">
@@ -1449,6 +1612,215 @@ export function App() {
     );
   };
 
+  const renderEditProfile = () => {
+    const handleSaveProfile = async () => {
+      if (!user?.token) return;
+      
+      setIsLoading(true);
+      try {
+        const result = await api.updateProfile(user.token, profileData);
+        console.log('Profile updated successfully:', result);
+        
+        // Update local user state with the response data
+        const updatedUserData = {
+          ...user,
+          username: profileData.username,
+          age: profileData.age,
+          gender: profileData.gender,
+          nationality: profileData.nationality,
+          hobbies: profileData.hobbies
+        };
+        
+        setUser(updatedUserData);
+        
+        // Update localStorage
+        try {
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('moodJournalUser', JSON.stringify(updatedUserData));
+            console.log('Updated user data in localStorage');
+          }
+        } catch (error) {
+          console.error('Error updating localStorage:', error);
+        }
+        
+        setCurrentView('main');
+      } catch (error) {
+        console.error('Profile update error:', error);
+        alert('Failed to update profile: ' + error.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    return (
+      <view className="edit-profile-container">
+        <view className="edit-profile-header">
+          <view
+            className="back-button"
+            bindtap={() => setCurrentView('main')}
+          >
+            <text className="back-button-text">← Back</text>
+          </view>
+          <text className="edit-profile-title">Edit Profile</text>
+        </view>
+
+        <view className="edit-profile-form">
+          <view className="profile-input-container">
+            <text className="profile-input-label">Name</text>
+            <input
+              className="profile-input-field"
+              placeholder={profileData.username ? profileData.username : "Enter your name"}
+              value={profileData.username}
+              type="text"
+              show-soft-input-on-focus={true}
+              bindinput={(e) => {
+                setProfileData(prev => ({ ...prev, username: e.detail.value }));
+              }}
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                border: '2px solid rgba(255, 255, 255, 0.3)',
+                borderRadius: '12px',
+                padding: '16px',
+                fontSize: '16px',
+                color: '#333',
+                minHeight: '60px',
+                transition: 'all 0.3s ease',
+                boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)'
+              }}
+            />
+          </view>
+
+          <view className="profile-input-container">
+            <text className="profile-input-label">Age</text>
+            <input
+              className="profile-input-field"
+              placeholder={profileData.age ? profileData.age.toString() : "Enter your age"}
+              value={profileData.age}
+              type="number"
+              show-soft-input-on-focus={true}
+              bindinput={(e) => {
+                setProfileData(prev => ({ ...prev, age: parseInt(e.detail.value) || 0 }));
+              }}
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                border: '2px solid rgba(255, 255, 255, 0.3)',
+                borderRadius: '12px',
+                padding: '16px',
+                fontSize: '16px',
+                color: '#333',
+                minHeight: '60px',
+                transition: 'all 0.3s ease',
+                boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)'
+              }}
+            />
+          </view>
+
+          <view className="profile-input-container">
+            <text className="profile-input-label">Gender</text>
+            <input
+              className="profile-input-field"
+              placeholder={profileData.gender ? profileData.gender : "Enter your gender"}
+              value={profileData.gender}
+              type="text"
+              show-soft-input-on-focus={true}
+              bindinput={(e) => {
+                setProfileData(prev => ({ ...prev, gender: e.detail.value }));
+              }}
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                border: '2px solid rgba(255, 255, 255, 0.3)',
+                borderRadius: '12px',
+                padding: '16px',
+                fontSize: '16px',
+                color: '#333',
+                minHeight: '60px',
+                transition: 'all 0.3s ease',
+                boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)'
+              }}
+            />
+          </view>
+
+          <view className="profile-input-container">
+            <text className="profile-input-label">Nationality</text>
+            <input
+              className="profile-input-field"
+              placeholder={profileData.nationality ? profileData.nationality : "Enter your nationality"}
+              value={profileData.nationality}
+              type="text"
+              show-soft-input-on-focus={true}
+              bindinput={(e) => {
+                setProfileData(prev => ({ ...prev, nationality: e.detail.value }));
+              }}
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                border: '2px solid rgba(255, 255, 255, 0.3)',
+                borderRadius: '12px',
+                padding: '16px',
+                fontSize: '16px',
+                color: '#333',
+                minHeight: '60px',
+                transition: 'all 0.3s ease',
+                boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)'
+              }}
+            />
+          </view>
+
+          <view className="profile-input-container">
+            <text className="profile-input-label">Hobbies (comma separated)</text>
+            <input
+              className="profile-input-field"
+              placeholder={profileData.hobbies && profileData.hobbies.length > 0 ? profileData.hobbies.join(', ') : "e.g., reading, music, sports"}
+              value={Array.isArray(profileData.hobbies) ? profileData.hobbies.join(', ') : profileData.hobbies}
+              type="text"
+              show-soft-input-on-focus={true}
+              bindinput={(e) => {
+                const hobbiesArray = e.detail.value
+                  .split(',')
+                  .map(h => h.trim())
+                  .filter(h => h);
+                setProfileData(prev => ({ ...prev, hobbies: hobbiesArray }));
+              }}
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                border: '2px solid rgba(255, 255, 255, 0.3)',
+                borderRadius: '12px',
+                padding: '16px',
+                fontSize: '16px',
+                color: '#333',
+                minHeight: '60px',
+                transition: 'all 0.3s ease',
+                boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)'
+              }}
+            />
+          </view>
+
+          <view 
+            className="save-profile-button" 
+            bindtap={handleSaveProfile}
+            style={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              borderRadius: '16px',
+              padding: '20px',
+              textAlign: 'center',
+              boxShadow: '0 8px 25px rgba(102, 126, 234, 0.3)',
+              transition: 'all 0.3s ease',
+              marginTop: '30px',
+              border: 'none'
+            }}
+          >
+            <text style={{
+              color: 'white',
+              fontSize: '18px',
+              fontWeight: '600'
+            }}>
+              {isLoading ? 'Saving...' : 'Save Profile'}
+            </text>
+          </view>
+        </view>
+      </view>
+    );
+  };
+
   // Main render
   let content;
   switch (currentView) {
@@ -1469,6 +1841,9 @@ export function App() {
       break;
     case 'day-detail':
       content = renderDayDetail();
+      break;
+    case 'edit-profile':
+      content = renderEditProfile();
       break;
     default:
       content = renderAuth();
