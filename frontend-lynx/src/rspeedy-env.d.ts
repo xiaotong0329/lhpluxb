@@ -1,1 +1,9 @@
 /// <reference types="@lynx-js/rspeedy/client" />
+
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      [elemName: string]: any;
+    }
+  }
+}

@@ -7,6 +7,7 @@ from flask_cors import CORS
 from pymongo import MongoClient
 from config import config
 import logging
+import pdb  # Python debugger
 
 # Import blueprints with proper paths
 try:
@@ -70,6 +71,9 @@ def create_app():
 
     @app.route('/health', methods=['GET'])
     def health_check():
+        # Debugger breakpoint - uncomment the next line to pause execution here
+        # pdb.set_trace()
+        
         return jsonify({
             'status': 'healthy', 
             'message': 'Mood Journal API is running',
