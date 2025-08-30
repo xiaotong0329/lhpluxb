@@ -659,6 +659,7 @@ body {
 
 .community-header {
   display: flex;
+  justify-content: center;
   align-items: center;
   margin-bottom: 30px;
 }
@@ -750,6 +751,34 @@ body {
 .post-stat-text {
   font-size: 14px;
   font-weight: 500;
+}
+
+.community-footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.community-footer .back-button {
+  background: rgba(102, 126, 234, 0.1);
+  border: 2px solid #667eea;
+  border-radius: 12px;
+  padding: 12px 20px;
+  transition: all 0.3s ease;
+}
+
+.community-footer .back-button:hover {
+  background: rgba(102, 126, 234, 0.2);
+  transform: translateY(-2px);
+}
+
+.community-footer .back-button-text {
+  color: #667eea;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 /* Responsive Design */

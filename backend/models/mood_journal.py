@@ -95,6 +95,14 @@ class Recommendation:
         return list(cursor)
 
     @staticmethod
+    def get_by_id(recommendation_id: str):
+        """Get a recommendation by ID"""
+        try:
+            return g.db.recommendations.find_one({'_id': ObjectId(recommendation_id)})
+        except:
+            return None
+
+    @staticmethod
     def add_feedback(recommendation_id: str, liked: bool):
         """Add user feedback to a recommendation"""
         update_data = {
